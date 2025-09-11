@@ -55,6 +55,7 @@ static bool send_line(int fd, const std::string &s)
 {
 	std::string line = s;
 	line.push_back('\n');
+	std::cout << line << std::endl;
 	return send_all(fd, line.data(), line.size());
 }
 
@@ -195,6 +196,7 @@ int main(int argc, char **argv)
 		// user ids: base+(2*i+1) and base+(2*i+2)
 		auto userA = cmd.user_base + std::to_string(2 * i + 1);
 		auto userB = cmd.user_base + std::to_string(2 * i + 2);
+		std::cout << "userA=" << userA << " userB=" << userB << "\n";
 		if (!send_line(a, "LOGIN " + userA + " " + cmd.password))
 			return 1;
 		std::string ln;

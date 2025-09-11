@@ -61,6 +61,9 @@ private:
     bool handleSEND (const TcpConnectionPtr& conn, const std::vector<std::string>& toks);
 	// 处理客户端拉取离线消息请求
     bool handlePULL (const TcpConnectionPtr& conn, const std::vector<std::string>& toks);
+	// 处理客户端注册请求
+	bool handleREGISTER(const TcpConnectionPtr &conn, const std::vector<std::string> &toks);
+
 
     // ---- 工具 ----
     static std::vector<std::string> split(const std::string& s, char delim);
