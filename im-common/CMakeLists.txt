@@ -1,0 +1,20 @@
+find_package(Protobuf REQUIRED)
+
+# 让 protoc 到 proto 目录里找 import 的文件
+set(IMCOMMON_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
+file(GLOB PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/proto/*.proto)
+set(PROTOBUF_IMPORT PROTOBUF_IMPORT_DIRS ${IMCOMMON_PROTO_DIR})
+
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
+
+add_library(im-common STATIC
+  ${PROTO_SRCS} ${PROTO_HDRS}
+  src/key_codec.cc src/id_gen.cc
+)
+
+target_include_directories(im-common PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_BINARY_DIR}         # 生成的 *.pb.h
+)
+
+target_link_libraries(im-common PUBLIC protobuf::libprotobuf)

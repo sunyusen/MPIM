@@ -1,0 +1,13 @@
+add_executable(rpc_roundtrip_bench
+	rpc_roundtrip_bench.cc
+)
+target_include_directories(rpc_roundtrip_bench PRIVATE
+	${CMAKE_SOURCE_DIR}/mprpc/src/include
+	${CMAKE_SOURCE_DIR}/im-common
+	${CMAKE_BINARY_DIR}/im-common
+)
+target_link_libraries(rpc_roundtrip_bench PRIVATE
+	im-common
+	mprpc            # 你的 RPC 框架静态/动态库名，按实际修改
+	pthread
+)

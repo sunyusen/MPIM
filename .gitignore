@@ -1,0 +1,50 @@
+# 忽略所有 .log 文件
+*.log
+
+# 忽略所有 .class 文件
+*.class
+
+# 忽略整个名为 node_modules 的目录及其内容
+node_modules/
+
+# 忽略当前目录下的 build目录
+/build/
+
+# 忽略所有名为 temp 的文件夹
+/temp/
+
+# 忽略 .DS_Store 文件（MacOS）
+.DS_Store
+
+# 忽略所有以波浪符结尾的临时文件
+*~
+
+# 忽略.vscode文件夹
+.vscode/
+
+/out/
+
+/CMakeCache.txt
+
+
+build/
+*.out
+*.log
+*.core
+# build/run artifacts
+bin/
+build/
+*.out
+*.log
+*.core
+# build/run artifacts
+bin/
+build/
+*.out
+*.log
+*.core
+bin/
+build/
+*.out
+*.log
+*.core

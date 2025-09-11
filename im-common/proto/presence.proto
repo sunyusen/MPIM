@@ -1,0 +1,39 @@
+syntax = "proto3";
+package mpim;
+import "common.proto";
+
+option cc_generic_services = true;	// 生成通用服务接口基类
+
+message BindRouteReq {
+	int64 user_id = 1;
+	string gateway_id = 2;
+	string device = 3;
+}
+
+message BindRouteResp {
+	Result result = 1;
+}
+
+message QueryRouteReq {
+	int64 user_id = 1;	
+}
+
+message QueryRouteResp {
+	Result result = 1;
+	string gateway_id = 2;
+}
+
+message DeliveReq {
+	int64 to = 1;
+	bytes payload = 3;
+}
+
+message DeliveResp {
+	Result result = 1;
+}
+
+service PresenceService {
+	rpc BindRoute(BindRouteReq) returns (BindRouteResp);
+	rpc QueryRoute(QueryRouteReq) returns (QueryRouteResp);
+	rpc Deliver(DeliveReq) returns (DeliveResp);
+}

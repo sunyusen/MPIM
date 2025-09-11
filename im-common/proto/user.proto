@@ -1,0 +1,20 @@
+syntax = "proto3";
+package mpim;
+
+import "common.proto";
+option cc_generic_services = true;	// 生成通用服务接口基类
+
+message LoginReq {
+	bytes username = 1;
+	bytes password = 2;
+}
+
+message LoginResp {
+	Result result = 1;
+	int64 user_id = 2;
+	string token = 3;
+}
+
+service UserService {
+	rpc Login(LoginReq) returns (LoginResp);
+}

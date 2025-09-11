@@ -1,0 +1,15 @@
+syntax = "proto3";
+package mpim;
+
+enum Code {
+	Ok = 0;
+	INVALID = 1;
+	NOT_FOUND = 2;
+	INTERNAL = 3;
+}
+
+message Result {
+	Code code = 1;
+	string msg = 2;
+}
+

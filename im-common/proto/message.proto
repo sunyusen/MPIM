@@ -1,0 +1,46 @@
+syntax = "proto3";
+package mpim;
+import "common.proto";
+
+option cc_generic_services = true;	// 生成通用服务接口基类
+
+message C2CMsg {
+	int64 msg_id = 1;
+	int64 from = 2;
+	int64 to = 3;
+	int64 ts_ms = 4;
+	string text = 5;
+}
+
+message SendReq {
+	C2CMsg msg = 1;
+}
+
+message SendResp {
+	Result result = 1;
+	int64 msg_id = 2;
+}
+
+message PullOfflineReq {
+	int64 user_id = 1;
+}
+
+message PullOfflineResp {
+	Result result = 1;
+	repeated C2CMsg msg_list = 2;
+}
+
+message AckReq {
+	int64 user_id = 1;
+	repeated int64 msg_id_list = 2;
+}
+
+message AckResp {
+	Result result = 1;
+}
+
+service MessageService {
+	rpc Send(SendReq) returns (SendResp);
+	rpc PullOffline(PullOfflineReq) returns (PullOfflineResp);
+	rpc Ack(AckReq) returns (AckResp);
+}

@@ -1,0 +1,19 @@
+# 业务实现做成静态库，方便复用/单测
+add_library(im-user STATIC
+  user_service.cc
+)
+
+# 对外暴露本模块的对外头文件目录（include）
+target_include_directories(im-user PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/im-common/include            # 公共 proto 头
+  ${CMAKE_BINARY_DIR}/im-common   
+)
+
+# 业务实现里用到的依赖只在库上声明即可
+# - mysqldb : 你在 thirdparty/mysqldb 里的薄封装（顶层已 add_subdirectory(thirdparty)）
+# - im-common: 公共 proto 产生的类型/枚举
+target_link_libraries(im-user PUBLIC
+  mysqldb
+  im-common
+)

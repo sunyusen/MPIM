@@ -1,0 +1,18 @@
+# 生成libmysql.a
+add_library(mysqldb STATIC
+	db.cpp
+)
+
+# 暴露自己的头文件
+target_include_directories(mysqldb PUBLIC
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${CMAKE_SOURCE_DIR}/mprpc/src/include	  #mprpc公开头文件
+	${CMAKE_BINARY_DIR}/mprpc/src    	  #mprpc生成的头文件
+)
+
+# 添加链接库
+target_link_libraries(mysqldb PUBLIC
+	mysqlclient
+	mprpc
+	im-common
+)

@@ -1,0 +1,16 @@
+syntax = "proto3";
+package mpim;
+
+option cc_generic_services = true;	// 生成通用服务接口基类
+message PingReq {
+	bytes payload = 1;
+}
+
+message PingResp {
+	bytes echo = 1;
+	int64 ts_server_ms = 2;
+}
+
+service HealthService {
+	rpc Ping(PingReq) returns (PingResp);
+}
