@@ -153,32 +153,22 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
 		return;
 	}
 
-	// 读取4字节长度前缀
-	uint32_t resp_len = 0;
-	int recvd = 0;
-	char lenbuf[4];
-	while (recvd < 4)
-	{
-		int n = recv(clientfd, lenbuf + recvd, 4 - recvd, 0);
-		if (n > 0) { recvd += n; continue; }
-		if (n == 0) { controller->SetFailed("connection closed before length"); close(clientfd); return; }
-		char errtext[512] = {0};
-		sprintf(errtext, "recv error! errno:   %d", errno);
-		controller->SetFailed(errtext);
-		close(clientfd);
-		return;
-	}
-	::memcpy(&resp_len, lenbuf, 4);
-
-	// 读取指定长度的响应体
+	// 接收完整响应：循环读取直到对端关闭
 	std::string resp_buf;
-	resp_buf.resize(resp_len);
-	size_t got = 0;
-	while (got < resp_buf.size())
+	resp_buf.reserve(256);
+	while (true)
 	{
-		int n = recv(clientfd, &resp_buf[got], (int)(resp_buf.size() - got), 0);
-		if (n > 0) { got += n; continue; }
-		if (n == 0) { controller->SetFailed("connection closed mid-body"); close(clientfd); return; }
+		char buf[4096];
+		int n = recv(clientfd, buf, sizeof(buf), 0);
+		if (n > 0)
+		{
+			resp_buf.append(buf, n);
+			continue;
+		}
+		if (n == 0)
+		{
+			break; // 对端关闭
+		}
 		char errtext[512] = {0};
 		sprintf(errtext, "recv error! errno:   %d", errno);
 		controller->SetFailed(errtext);
