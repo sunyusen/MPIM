@@ -15,7 +15,6 @@
 #include <mutex>
 #include <unordered_map>
 #include <chrono>
-#include <vector>
 
 /*
 header_size + service_name method_name args_size + args
@@ -69,6 +68,16 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
 	send_rpc_str += rpc_header_str;								  // rpcheader
 	send_rpc_str += args_str;								  // args
 
+	// 使用tcp编程，完成rpc方法的远程调用
+	int clientfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (-1 == clientfd)
+	{
+		char errtext[512] = {0};
+		sprintf(errtext, "create socket error! errno: %d", errno);
+		controller->SetFailed(errtext);
+		return;
+	}
+
 	// 单例 ZK + 地址缓存，减少每次调用的服务发现开销
 	struct CacheEntry { sockaddr_in addr; steady_clock::time_point expire; };
 	static std::once_flag s_zk_once;
@@ -99,12 +108,14 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
 		if (host_data == "")
 		{
 			controller->SetFailed(method_path + " is not exist!");
+			close(clientfd);
 			return;
 		}
 		int idx = host_data.find(":");
 		if (idx == -1)
 		{
 			controller->SetFailed(method_path + " address is invalid!");
+			close(clientfd);
 			return;
 		}
 		std::string ip = host_data.substr(0, idx);
@@ -118,58 +129,23 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
 		s_addr_cache[method_path] = CacheEntry{server_addr, now_tp + ttl};
 	}
 
-	// 连接池：按 service/method 复用 socket，避免频繁 connect/close
-	static std::mutex s_pool_mu;
-	static std::unordered_map<std::string, std::vector<int>> s_conn_pool;
-	static const size_t kMaxPoolPerKey = 64;
-
-	auto dial = [&](const sockaddr_in &addr) -> int {
-		int fd = socket(AF_INET, SOCK_STREAM, 0);
-		if (fd == -1) return -1;
-#ifdef TCP_NODELAY
-		int one = 1; setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-#endif
-		if (-1 == connect(fd, (const struct sockaddr *)&addr, sizeof(addr)))
-		{
-			close(fd);
-			return -1;
-		}
-		return fd;
-	};
-
-	auto borrow_fd = [&]() -> int {
-		std::lock_guard<std::mutex> lk(s_pool_mu);
-		auto &vec = s_conn_pool[method_path];
-		if (!vec.empty()) { int fd = vec.back(); vec.pop_back(); return fd; }
-		return -1;
-	};
-	auto return_fd = [&](int fd) {
-		std::lock_guard<std::mutex> lk(s_pool_mu);
-		auto &vec = s_conn_pool[method_path];
-		if (vec.size() < kMaxPoolPerKey) vec.push_back(fd); else close(fd);
-	};
-
-	int clientfd = borrow_fd();
-	if (clientfd == -1)
+	// 连接rpc服务节点
+	if (-1 == connect(clientfd, (struct sockaddr *)&server_addr, sizeof(server_addr)))
 	{
-		clientfd = dial(server_addr);
-		if (clientfd == -1)
-		{
-			char errtext[512] = {0};
-			sprintf(errtext, "connect error! errno:  %d", errno);
-			controller->SetFailed(errtext);
-			return;
-		}
+		char errtext[512] = {0};
+		sprintf(errtext, "connect error! errno:  %d", errno);
+		controller->SetFailed(errtext);
+		close(clientfd);
+		return;
 	}
 
-	// 发送请求（阻塞发送完整缓冲区）
-	const char *data = send_rpc_str.data();
-	size_t left = send_rpc_str.size();
-	while (left > 0)
+	// 发送rpc请求（尽量降低RTT）
+#ifdef TCP_NODELAY
+	int one = 1;
+	setsockopt(clientfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+#endif
+	if (-1 == send(clientfd, send_rpc_str.c_str(), send_rpc_str.size(), 0))
 	{
-		ssize_t n = send(clientfd, data, left, 0);
-		if (n > 0) { data += n; left -= (size_t)n; continue; }
-		// 发送错误，销毁连接
 		char errtext[512] = {0};
 		sprintf(errtext, "send error! errno:   %d", errno);
 		controller->SetFailed(errtext);
@@ -218,6 +194,5 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
 		return;
 	}
 
-	// 成功则归还连接到池
-	return_fd(clientfd);
+	close(clientfd);
 }
