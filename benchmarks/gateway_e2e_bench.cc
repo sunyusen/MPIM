@@ -55,7 +55,7 @@ static bool send_line(int fd, const std::string &s)
 {
 	std::string line = s;
 	line.push_back('\n');
-	std::cout << line << std::endl;
+	// std::cout << line << std::endl;
 	return send_all(fd, line.data(), line.size());
 }
 
@@ -251,6 +251,7 @@ int main(int argc, char **argv)
 		}
 	};
 
+	// 使用多线程模拟并发送消息，每个线程负责一部分连接对，循环发送消息
 	std::vector<std::thread> th;
 	for (int t = 0; t < cmd.threads; t++)
 		th.emplace_back(worker, t);

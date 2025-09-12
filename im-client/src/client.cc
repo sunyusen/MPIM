@@ -246,7 +246,7 @@ void Client::prettyPrintLine(const std::string &line)
 
 	if (line.rfind("+OK welcome", 0) == 0)
 	{
-		std::cout << "\r已连接网关。可用命令：login:<user>:<pwd> | chat:<uid>:<text> | pull | help | quit\n";
+		std::cout << "\r已连接网关。可用命令：login:<user>:<pwd> | chat:<uid>:<text> | register:<user>:<pwd> | pull | help | quit\n";
 	}
 	else if (line.rfind("+OK uid=", 0) == 0)
 	{

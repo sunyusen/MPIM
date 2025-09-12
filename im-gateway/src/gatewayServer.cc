@@ -163,6 +163,7 @@ void GatewayServer::handleLine(const TcpConnectionPtr &c, const std::string &lin
 	for (char &x : cmd)
 		x = ::toupper(x);
 
+	std::cout << "cmd=" << cmd << "\n";
 	bool okv = false;
 	if (cmd == "REGISTER")
 	{

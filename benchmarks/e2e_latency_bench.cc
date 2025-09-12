@@ -13,6 +13,8 @@
 #include <vector>
 #include <unordered_map>
 #include <condition_variable>
+#include <cmath>
+#include <algorithm>
 
 using namespace std::chrono;
 
@@ -174,7 +176,7 @@ int main(int argc, char** argv) {
         std::string a=argv[i];
         auto eat=[&](const char* k, auto& dst){ 
             if(a.rfind(k,0)==0){ 
-                dst=static_cast<decltype(dst)>(std::stoi(a.substr(strlen(k)))); 
+                dst=std::stoi(a.substr(strlen(k))); 
                 return true;
             } 
             return false;
