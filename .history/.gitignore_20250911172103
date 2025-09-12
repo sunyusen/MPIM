@@ -48,5 +48,3 @@ build/
 *.out
 *.log
 *.core
-
-/performance_tuning.md
