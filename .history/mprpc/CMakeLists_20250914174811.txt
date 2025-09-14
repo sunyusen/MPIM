@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.16)
+project(mprpc LANGUAGES CXX)
+
+# 选项（默认：示例/测试关闭；库可安装）
+option(MPRPC_BUILD_EXAMPLES "Build mprpc examples" ON)
+option(MPRPC_BUILD_TESTS    "Build mprpc tests"    OFF)
+option(MPRPC_INSTALL        "Install mprpc targets" ON)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+
+# 库本体
+add_subdirectory(src)
+
+# example库
+if(MPRPC_BUILD_EXAMPLES AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/example)
+  add_subdirectory(example)
+endif()
+
+include(GNUInstallDirs)
+
+# 安装导出（库与头文件）
+if(MPRPC_INSTALL)
+  include(GNUInstallDirs)
+  install(TARGETS mprpc
+          EXPORT  mprpcTargets
+          ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/include/
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mprpc)
+
+  # 安装 rpcheader 生成头（由 src/CMakeLists 生成在 build/src 下）
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/src/rpcheader.pb.h
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mprpc/proto)
+
+  install(EXPORT mprpcTargets
+          NAMESPACE mprpc::
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mprpc)
+endif()
+
+message(STATUS "[mprpc] examples=${MPRPC_BUILD_EXAMPLES}, tests=${MPRPC_BUILD_TESTS}")

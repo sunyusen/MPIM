@@ -1,0 +1,24 @@
+# im-group 群组服务
+add_executable(im-groupd
+  src/main.cc
+  src/group_service.cc
+  src/health_service.cc
+)
+
+target_include_directories(im-groupd PRIVATE
+  src/include
+  ${CMAKE_SOURCE_DIR}/im-common/include
+  ${CMAKE_SOURCE_DIR}/mprpc/include
+  ${CMAKE_SOURCE_DIR}/thirdparty/include
+)
+
+target_link_libraries(im-groupd PRIVATE
+  im-common
+  mprpc
+  thirdparty
+  mysqlclient
+  pthread
+)
+
+# 安装到 bin 目录
+install(TARGETS im-groupd DESTINATION bin)

@@ -50,3 +50,5 @@ build/
 *.core
 
 /performance_tuning.md
+/sql
+demo_usage.md

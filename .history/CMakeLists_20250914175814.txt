@@ -1,0 +1,116 @@
+# 设置cmake的最低版本和项目名称
+cmake_minimum_required(VERSION 3.0)
+project(mpim LANGUAGES CXX)
+
+# ------------------------- Global Settings -------------------------
+set(CMAKE_CXX_STANDARD 17)  #强制使用C++17标准
+set(CMAKE_CXX_STANDARD_REQUIRED ON)  #必须支持C++17
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+
+# 统一本地构建产物到 out/（多配置生成器也能适配）
+foreach(cfg Debug Release RelWithDebInfo MinSizeRel)
+#   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${cfg} ${CMAKE_SOURCE_DIR}/out/${cfg}/bin)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${cfg} ${CMAKE_SOURCE_DIR}/out/${cfg}/lib)
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${cfg} ${CMAKE_SOURCE_DIR}/out/${cfg}/lib)
+endforeach()
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+
+# 默认安装前缀到 dist/（可 -DCMAKE_INSTALL_PREFIX=... 覆盖）
+if(PROJECT_IS_TOP_LEVEL AND NOT DEFINED CMAKE_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/dist" CACHE PATH "Install prefix" FORCE)
+endif()
+
+# 统一 Protobuf 前缀
+set(Protobuf_ROOT "/usr/local/protobuf")
+set(Protobuf_PROTOC_EXECUTABLE "/usr/local/protobuf/bin/protoc")
+list(APPEND CMAKE_PREFIX_PATH "/usr/local/protobuf")
+set(Protobuf_PROTOC_EXECUTABLE "/usr/local/protobuf/bin/protoc" CACHE FILEPATH "protoc path" FORCE)
+
+# ---------- Build options ----------
+option(MPIM_BUILD_TESTS        "Build tests"                 ON)
+option(MPIM_BUILD_BENCHMARKS   "Build benchmarks"            OFF)
+option(MPIM_BUILD_TOOLS        "Build example/tools clients" ON)
+option(MPIM_BUILD_IM_USER      "Build im-user service"       ON)   # 时间紧可先 OFF
+option(MPIM_ENABLE_INSTALL     "Install all mpim targets"    ON)
+
+# ---------- Third-party (FetchContent on-demand) ----------
+include(FetchContent)
+if(MPIM_BUILD_TESTS)
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)   # 提供 GTest::gtest / GTest::gtest_main
+endif()
+
+if(MPIM_BUILD_BENCHMARKS)
+  FetchContent_Declare(
+    googlebenchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG v1.8.3
+  )
+  set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googlebenchmark)  # 提供 benchmark::benchmark
+endif()
+
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gdwarf-4")
+endif()
+
+# 示例 / CLI 工具（可选）
+if(MPIM_BUILD_TOOLS AND EXISTS "${CMAKE_SOURCE_DIR}/example")
+  add_subdirectory(example)
+endif()
+
+# ---------- Tests / Benchmarks ----------
+if(MPIM_BUILD_TESTS AND EXISTS "${CMAKE_SOURCE_DIR}/tests")
+  enable_testing()
+  add_subdirectory(tests)        # 测试 target 内部使用 GTest::gtest_main
+endif()
+
+if(MPIM_BUILD_BENCHMARKS AND EXISTS "${CMAKE_SOURCE_DIR}/benchmarks")
+  add_subdirectory(benchmarks)   # 基准 target 内部使用 benchmark::benchmark
+endif()
+
+# ---------- Install umbrella (optional) ----------
+# 各子目录应自行写 install(TARGETS ...)；这里仅给个占位以便统一开关
+# if(MPIM_ENABLE_INSTALL)
+#   # 可以在这里安装公共的部署文件，如 deploy/ 等（按需）
+#   # install(DIRECTORY ${CMAKE_SOURCE_DIR}/deploy/ DESTINATION deploy)
+# endif()
+
+# 配置库文件的搜索路径mysql
+link_directories(/usr/lib64/mysql)
+
+# ---------- Subprojects ----------
+# 你的 RPC 框架（内部库），由各服务链接
+add_subdirectory(mprpc)
+
+# 公共库（统一生成 .proto 并导出头文件/静态库）
+# 参考：im-common/CMakeLists 会 find_package(Protobuf) 并生成 im-common 库
+add_subdirectory(im-common)
+
+# 业务服务
+add_subdirectory(im-presence)
+add_subdirectory(im-message)
+if(MPIM_BUILD_IM_USER)
+  add_subdirectory(im-user)
+endif()
+add_subdirectory(im-group)
+add_subdirectory(im-gateway)
+
+add_subdirectory(thirdparty)
+add_subdirectory(im-client)
+
+# ---------- Build summary ----------
+message(STATUS "==== MPIM Build Summary ====")
+message(STATUS "CMAKE_BUILD_TYPE      : ${CMAKE_BUILD_TYPE}")
+message(STATUS "CMAKE_INSTALL_PREFIX  : ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "Build tests           : ${MPIM_BUILD_TESTS}")
+message(STATUS "Build benchmarks      : ${MPIM_BUILD_BENCHMARKS}")
+message(STATUS "Build tools/examples  : ${MPIM_BUILD_TOOLS}")
+message(STATUS "Build im-user         : ${MPIM_BUILD_IM_USER}")
