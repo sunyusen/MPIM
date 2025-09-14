@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(mprpc LANGUAGES CXX)
 
 # 选项（默认：示例/测试关闭；库可安装）
-option(MPRPC_BUILD_EXAMPLES "Build mprpc examples" ON)
+option(MPRPC_BUILD_EXAMPLES "Build mprpc examples" OFF)
 option(MPRPC_BUILD_TESTS    "Build mprpc tests"    OFF)
 option(MPRPC_INSTALL        "Install mprpc targets" ON)
 
@@ -25,7 +25,6 @@ include(GNUInstallDirs)
 if(MPRPC_INSTALL)
   include(GNUInstallDirs)
   install(TARGETS mprpc
-          EXPORT  mprpcTargets
           ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
           LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
           RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -36,10 +35,6 @@ if(MPRPC_INSTALL)
   # 安装 rpcheader 生成头（由 src/CMakeLists 生成在 build/src 下）
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/src/rpcheader.pb.h
           DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mprpc/proto)
-
-  install(EXPORT mprpcTargets
-          NAMESPACE mprpc::
-          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mprpc)
 endif()
 
 message(STATUS "[mprpc] examples=${MPRPC_BUILD_EXAMPLES}, tests=${MPRPC_BUILD_TESTS}")

@@ -2,7 +2,6 @@
 #include <muduo/net/TcpServer.h>
 #include <muduo/net/EventLoop.h>
 #include <muduo/net/Buffer.h>
-#include <muduo/base/Logging.h>
 
 #include <unordered_map>
 #include <memory>
@@ -21,6 +20,9 @@
 #include "group.pb.h"
 
 #include "redis.hpp"
+
+#include "logger/logger.h"
+#include "logger/log_init.h"
 
 /*
 GatewayServer类是一个基于Muduo网络库实现的网关服务器，主要用于处理客户端连接、消息转发以及与后端服务的交互

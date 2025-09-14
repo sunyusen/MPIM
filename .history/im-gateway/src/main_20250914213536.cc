@@ -1,0 +1,16 @@
+#include "mprpcapplication.h"
+#include <muduo/net/EventLoop.h>
+#include <muduo/net/InetAddress.h>
+#include "gatewayServer.h"
+
+int main(int argc, char** argv) {
+  mpim::logger::LogInit::InitDefault("im-gateway");
+  MprpcApplication::Init(argc, argv);
+
+  muduo::net::EventLoop loop;
+  muduo::net::InetAddress addr(9000);             // 对外端口，可放到 conf
+  GatewayServer server(&loop, addr, "gateway-1");  // 网关实例ID，可放到 conf
+  server.start();
+  loop.loop();
+  return 0;
+}
