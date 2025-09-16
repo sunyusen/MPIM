@@ -1,0 +1,24 @@
+graph LR
+    subgraph "Redis 存储结构"
+        A[路由缓存] --> B["route:user_id → gateway_id"]
+        A --> C["TTL: 120秒"]
+        
+        D[消息队列] --> E["Channel: 10000 + hash(gateway_id) % 50000"]
+        D --> F["Message: 序列化消息内容"]
+    end
+    
+    subgraph "Presence Service 内部结构"
+        G[CacheManager] --> H["Setex/Get/Del 操作"]
+        I[MessageQueue] --> J["Publish/Subscribe 操作"]
+        K[GwChannelOf] --> L["网关ID → 通道号映射"]
+    end
+    
+    G --> A
+    I --> D
+    K --> E
+    
+    style A fill:#e8f5e8
+    style D fill:#fff3e0
+    style G fill:#e1f5fe
+    style I fill:#e1f5fe
+    style K fill:#f3e5f5

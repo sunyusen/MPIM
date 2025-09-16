@@ -1,0 +1,62 @@
+graph TB
+    subgraph "客户端层"
+        C1[客户端1]
+        C2[客户端2]
+        C3[客户端N]
+    end
+    
+    subgraph "接入层 - 网关服务集群"
+        G1[网关1<br/>gateway-001<br/>Muduo网络库]
+        G2[网关2<br/>gateway-002<br/>Muduo网络库]
+        G3[网关N<br/>gateway-N<br/>Muduo网络库]
+    end
+    
+    subgraph "服务层 - 微服务集群"
+        U[用户服务<br/>im-user<br/>注册/登录/好友]
+        M[消息服务<br/>im-message<br/>消息存储/转发]
+        P[在线状态服务<br/>im-presence<br/>路由管理]
+        G[群组服务<br/>im-group<br/>群聊管理]
+    end
+    
+    subgraph "中间件层"
+        RPC[自研RPC框架<br/>基于protobuf<br/>连接池+负载均衡]
+        ZK[ZooKeeper<br/>服务注册发现<br/>配置管理]
+        REDIS[Redis单机<br/>消息队列+缓存<br/>pub/sub模式]
+        LOG[异步日志系统<br/>多线程异步写入<br/>统一日志管理]
+    end
+    
+    subgraph "数据层"
+        MYSQL[(MySQL<br/>用户数据<br/>消息历史<br/>群组信息)]
+        REDIS_DB[(Redis<br/>在线路由<br/>消息队列<br/>会话缓存)]
+    end
+    
+    C1 --> G1
+    C2 --> G2
+    C3 --> G3
+    
+    G1 --> RPC
+    G2 --> RPC
+    G3 --> RPC
+    
+    RPC --> U
+    RPC --> M
+    RPC --> P
+    RPC --> G
+    
+    U --> ZK
+    M --> ZK
+    P --> ZK
+    G --> ZK
+    
+    P --> REDIS
+    M --> REDIS
+    G1 --> REDIS
+    G2 --> REDIS
+    G3 --> REDIS
+    
+    U --> MYSQL
+    M --> MYSQL
+    G --> MYSQL
+    
+    P --> REDIS_DB
+    M --> REDIS_DB

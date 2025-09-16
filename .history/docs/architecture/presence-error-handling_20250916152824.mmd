@@ -1,0 +1,39 @@
+graph TD
+    A[Presence Service 启动] --> B{Redis 连接成功?}
+    B -->|是| C[正常服务模式]
+    B -->|否| D[降级模式]
+    
+    C --> E[BindRoute 操作]
+    E --> F{路由存储成功?}
+    F -->|是| G[返回成功]
+    F -->|否| H[记录错误日志]
+    
+    C --> I[QueryRoute 操作]
+    I --> J{路由查询成功?}
+    J -->|是| K[返回网关ID]
+    J -->|否| L[返回空值]
+    
+    C --> M[Deliver 操作]
+    M --> N{消息投递成功?}
+    N -->|是| O[消息已投递]
+    N -->|否| P[记录投递失败]
+    
+    D --> Q[服务继续运行]
+    Q --> R[定期重试连接]
+    R --> S{重连成功?}
+    S -->|是| C
+    S -->|否| Q
+    
+    H --> T[返回错误响应]
+    L --> U[用户可能离线]
+    P --> V[记录到错误日志]
+    
+    style A fill:#e8f5e8
+    style C fill:#e1f5fe
+    style D fill:#ffebee
+    style G fill:#c8e6c9
+    style K fill:#c8e6c9
+    style O fill:#c8e6c9
+    style T fill:#ffcdd2
+    style U fill:#fff3e0
+    style V fill:#ffcdd2

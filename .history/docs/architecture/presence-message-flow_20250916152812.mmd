@@ -1,0 +1,29 @@
+graph TD
+    A[Client A] -->|1. 连接请求| B[Gateway A]
+    B -->|2. BindRoute| C[Presence Service]
+    C -->|3. 存储路由| D[Redis Cache]
+    
+    E[Client B] -->|1. 连接请求| F[Gateway B]
+    F -->|2. BindRoute| C
+    C -->|3. 存储路由| D
+    
+    A -->|4. 发送消息| B
+    B -->|5. Deliver| C
+    C -->|6. QueryRoute| D
+    D -->|7. 返回网关ID| C
+    C -->|8. 发布消息| G[Redis Message Queue]
+    G -->|9. 订阅消息| F
+    F -->|10. 投递消息| E
+    
+    H[Client A 下线] -->|11. 断开连接| B
+    B -->|12. 清理路由| C
+    C -->|13. 删除路由| D
+    
+    style A fill:#e1f5fe
+    style E fill:#e1f5fe
+    style H fill:#ffebee
+    style B fill:#f3e5f5
+    style F fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style G fill:#fff3e0

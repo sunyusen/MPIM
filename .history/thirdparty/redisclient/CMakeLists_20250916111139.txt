@@ -1,0 +1,19 @@
+# 1)生成静态库 redisclient(基于hiredis的Redis功能封装)
+add_library(redisclient STATIC
+	redis.cpp
+	src/redis_client.cc
+	src/message_queue.cc
+	src/cache_manager.cc
+)
+
+# 2)导出本库的头文件
+target_include_directories(redisclient PUBLIC
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	/usr/local/include  # 使用hiredis 1.0.0的头文件
+)
+
+# 链接hiredis 1.0.0版本和pthread
+target_link_libraries(redisclient PUBLIC
+	/usr/local/lib/libhiredis.so.1.0.0
+	pthread
+)

@@ -1,0 +1,85 @@
+syntax = "proto3";
+package mpim;
+ir "common.proto";
+
+option cc_generic_services = true;
+
+// 创建群组
+message CreateGroupReq {
+	int64 creator_id = 1;
+	string group_name = 2;
+	string description = 3;
+}
+
+message CreateGroupResp {
+	Result result = 1;
+	int64 group_id = 2;
+}
+
+// 加入群组
+message JoinGroupReq {
+	int64 user_id = 1;
+	int64 group_id = 2;
+}
+
+message JoinGroupResp {
+	Result result = 1;
+}
+
+// 离开群组
+message LeaveGroupReq {
+	int64 user_id = 1;
+	int64 group_id = 2;
+}
+
+message LeaveGroupResp {
+	Result result = 1;
+}
+
+// 获取群组成员
+message GetGroupMembersReq {
+	int64 group_id = 1;
+}
+
+message GetGroupMembersResp {
+	Result result = 1;
+	repeated int64 member_ids = 2;
+}
+
+// 获取用户加入的群组
+message GetUserGroupsReq {
+	int64 user_id = 1;
+}
+
+message GetUserGroupsResp {
+	Result result = 1;
+	repeated int64 group_ids = 2;
+}
+
+// 群组信息
+message GroupInfo {
+	int64 group_id = 1;
+	string group_name = 2;
+	string description = 3;
+	int64 creator_id = 4;
+	int64 created_at = 5;
+}
+
+// 获取群组信息
+message GetGroupInfoReq {
+	int64 group_id = 1;
+}
+
+message GetGroupInfoResp {
+	Result result = 1;
+	GroupInfo group_info = 2;
+}
+
+service GroupService {
+	rpc CreateGroup(CreateGroupReq) returns (CreateGroupResp);
+	rpc JoinGroup(JoinGroupReq) returns (JoinGroupResp);
+	rpc LeaveGroup(LeaveGroupReq) returns (LeaveGroupResp);
+	rpc GetGroupMembers(GetGroupMembersReq) returns (GetGroupMembersResp);
+	rpc GetUserGroups(GetUserGroupsReq) returns (GetUserGroupsResp);
+	rpc GetGroupInfo(GetGroupInfoReq) returns (GetGroupInfoResp);
+}
