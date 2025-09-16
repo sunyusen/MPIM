@@ -47,7 +47,6 @@ graph TB
     %% 缓存功能连接
     US --> CACHE
     GS --> CACHE
-    PS --> CACHE
     CACHE --> USER_CACHE
     CACHE --> FRIENDS_CACHE
     CACHE --> STATUS_CACHE

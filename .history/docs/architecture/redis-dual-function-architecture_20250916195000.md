@@ -45,25 +45,23 @@ graph TB
     end
     
     %% 缓存功能连接
-    US --> CACHE
-    GS --> CACHE
-    PS --> CACHE
-    CACHE --> USER_CACHE
-    CACHE --> FRIENDS_CACHE
-    CACHE --> STATUS_CACHE
-    CACHE --> GROUP_CACHE
-    CACHE --> MEMBERS_CACHE
+    US --> USER_CACHE
+    US --> FRIENDS_CACHE
+    US --> STATUS_CACHE
+    GS --> GROUP_CACHE
+    GS --> MEMBERS_CACHE
     
     %% 消息队列功能连接
-    PS --> QUEUE
-    MS --> QUEUE
-    GW --> QUEUE
-    QUEUE --> PUB_SUB
-    QUEUE --> ROUTE_QUEUE
-    QUEUE --> OFFLINE_QUEUE
+    PS --> PUB_SUB
+    MS --> PUB_SUB
+    MS --> OFFLINE_QUEUE
+    GW --> ROUTE_QUEUE
+    GW --> PUB_SUB
     
     %% 缓存降级连接
-    CACHE -.->|缓存未命中| MYSQL
+    USER_CACHE -.->|缓存未命中| MYSQL
+    FRIENDS_CACHE -.->|缓存未命中| MYSQL
+    GROUP_CACHE -.->|缓存未命中| MYSQL
     
     %% 消息推送连接
     PUB_SUB --> CLI
