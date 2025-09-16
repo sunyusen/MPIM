@@ -1,0 +1,91 @@
+# MPIM 项目文档
+
+## 文档目录
+
+### 架构设计
+- [系统整体架构](architecture/overview.md) - 系统整体架构设计和分层说明
+- [消息流转机制](architecture/message-flow.md) - 消息流转的详细流程和时序图
+- [RPC框架设计](architecture/rpc-framework.md) - 自研RPC框架的架构和实现
+- [数据存储架构](architecture/data-storage.md) - Redis+MySQL混合存储架构
+
+### 性能优化
+- [性能优化报告](performance/optimization.md) - 性能优化手段和测试结果
+
+### 部署运维
+- [部署架构设计](deployment/architecture.md) - 生产环境部署架构和容器化方案
+
+## 快速开始
+
+### 1. 环境要求
+- CentOS 7+ / Ubuntu 18+
+- Redis 6.2.6+
+- MySQL 8.0+
+- ZooKeeper 3.6+
+- GCC 11+ (支持C++17)
+
+### 2. 快速部署
+```bash
+# 克隆项目
+git clone https://github.com/yourname/mpim.git
+cd mpim
+
+# 安装依赖
+./scripts/install_deps.sh
+
+# 启动服务
+./bin/start.sh
+```
+
+### 3. 验证部署
+```bash
+# 检查服务状态
+./scripts/health_check.sh
+
+# 运行测试
+./bin/test_client
+```
+
+## 项目特点
+
+- **微服务架构**: 服务解耦、独立部署、易于扩展
+- **高性能**: RPC性能提升43倍，延迟降低87%
+- **高可用**: 服务集群部署，支持故障转移
+- **实时性**: 基于Redis pub/sub的毫秒级消息投递
+- **可扩展**: 支持水平扩展，动态负载均衡
+
+## 性能指标
+
+| 指标 | 优化前 | 优化后 | 提升 |
+|------|--------|--------|------|
+| QPS | 622 | 26,850 | 43倍 |
+| P99延迟 | 33ms | 2.6ms | 87% |
+| 并发连接 | 100 | 10,000+ | 100倍 |
+| 消息吞吐 | 1,000/s | 100,000+/s | 100倍 |
+
+## 技术栈
+
+- **开发语言**: C++17
+- **网络库**: Muduo
+- **RPC框架**: 自研 (基于protobuf)
+- **服务发现**: ZooKeeper
+- **消息队列**: Redis pub/sub
+- **数据存储**: MySQL + Redis
+- **容器化**: Docker + Kubernetes
+- **监控**: Prometheus + Grafana
+
+## 贡献指南
+
+1. Fork 项目
+2. 创建功能分支
+3. 提交代码
+4. 创建 Pull Request
+
+## 许可证
+
+MIT License
+
+## 联系方式
+
+- 作者: Your Name
+- 邮箱: your.email@example.com
+- 项目地址: https://github.com/yourname/mpim
