@@ -1,0 +1,22 @@
+# Redis Cache Test
+add_executable(test_redis_cache
+    test_redis_cache.cpp
+)
+
+target_include_directories(test_redis_cache PRIVATE
+    ${CMAKE_SOURCE_DIR}/im-user/include
+    ${CMAKE_SOURCE_DIR}/im-group/include
+    ${CMAKE_SOURCE_DIR}/im-presence/include
+    ${CMAKE_SOURCE_DIR}/im-common/include
+    ${CMAKE_SOURCE_DIR}/thirdparty/redisclient/include
+    ${CMAKE_SOURCE_DIR}/mprpc/src/include
+)
+
+target_link_libraries(test_redis_cache PRIVATE
+    im-common
+    redisclient
+    pthread
+)
+
+# 安装测试程序
+install(TARGETS test_redis_cache DESTINATION bin)

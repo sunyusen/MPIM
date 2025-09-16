@@ -53,8 +53,6 @@ private:
     // 缓存键生成
     std::string UserInfoKey(const std::string& username);
     std::string FriendsKey(int64_t user_id);
-    std::string UserStatusKey(int64_t user_id);
-    std::string UsernameExistsKey(const std::string& username);
 };
 
 } // namespace user

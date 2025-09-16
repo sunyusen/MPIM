@@ -104,7 +104,21 @@ void UserCache::SetDegradedCallback(std::function<std::string(const std::string&
     degraded_callback_ = callback;
 }
 
-// 好友关系缓存实现（AddFriend和RemoveFriend方法）
+// 好友关系缓存实现
+std::string UserCache::GetFriends(int64_t user_id) {
+    if (!IsConnected()) return "";
+    return cache_manager_.Get(FriendsKey(user_id));
+}
+
+bool UserCache::SetFriends(int64_t user_id, const std::string& friends_data, int ttl) {
+    if (!IsConnected()) return false;
+    return cache_manager_.Setex(FriendsKey(user_id), ttl, friends_data);
+}
+
+bool UserCache::DelFriends(int64_t user_id) {
+    if (!IsConnected()) return false;
+    return cache_manager_.Del(FriendsKey(user_id));
+}
 
 bool UserCache::AddFriend(int64_t user_id, int64_t friend_id) {
     if (!IsConnected()) return false;

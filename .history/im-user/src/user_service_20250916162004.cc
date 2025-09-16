@@ -3,7 +3,6 @@
 #include "logger/logger.h"
 #include "logger/log_init.h"
 #include "user_cache.h"
-#include <sstream>
 
 UserServiceImpl::UserServiceImpl()
 {
@@ -396,24 +395,12 @@ void UserServiceImpl::RemoveFriend(google::protobuf::RpcController *,
 	
 	if (!db_->update(sql1) || !db_->update(sql2))
 	{
-		LOG_ERROR << "UserServiceImpl::RemoveFriend: Failed to remove friend relationship between " << req->user_id() << " and " << req->friend_id();
 		r->set_code(mpim::Code::INTERNAL);
 		r->set_msg("remove friend failed");
 		if (done) done->Run();
 		return;
 	}
 	
-	// 更新Redis缓存中的好友关系
-	if (user_cache_->IsConnected()) {
-		user_cache_->RemoveFriend(req->user_id(), req->friend_id());
-		user_cache_->RemoveFriend(req->friend_id(), req->user_id());
-		// 清除好友列表缓存，强制下次查询时重新加载
-		user_cache_->DelFriends(req->user_id());
-		user_cache_->DelFriends(req->friend_id());
-		LOG_INFO << "UserServiceImpl::RemoveFriend: Updated friend relationship in cache";
-	}
-	
-	LOG_INFO << "UserServiceImpl::RemoveFriend: Successfully removed friend relationship between " << req->user_id() << " and " << req->friend_id();
 	r->set_code(mpim::Code::Ok);
 	r->set_msg("friend removed");
 	if (done) done->Run();

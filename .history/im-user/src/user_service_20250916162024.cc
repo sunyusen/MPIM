@@ -3,7 +3,6 @@
 #include "logger/logger.h"
 #include "logger/log_init.h"
 #include "user_cache.h"
-#include <sstream>
 
 UserServiceImpl::UserServiceImpl()
 {

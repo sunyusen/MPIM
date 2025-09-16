@@ -3,7 +3,6 @@
 #include "logger/logger.h"
 #include "logger/log_init.h"
 #include "user_cache.h"
-#include <sstream>
 
 UserServiceImpl::UserServiceImpl()
 {
@@ -315,31 +314,8 @@ void UserServiceImpl::GetFriends(google::protobuf::RpcController *,
 								mpim::GetFriendsResp *resp,
 								google::protobuf::Closure *done)
 {
-	LOG_INFO << "UserServiceImpl::GetFriends: Getting friends for user " << req->user_id();
-	
 	mpim::Result *r = resp->mutable_result();
 	
-	// 1. 先尝试从Redis缓存获取好友列表
-	if (user_cache_->IsConnected()) {
-		std::string cached_friends = user_cache_->GetFriends(req->user_id());
-		if (!cached_friends.empty()) {
-			// 解析缓存的好友列表
-			std::istringstream iss(cached_friends);
-			std::string friend_id_str;
-			while (std::getline(iss, friend_id_str, ',')) {
-				if (!friend_id_str.empty()) {
-					resp->add_friend_ids(std::stoll(friend_id_str));
-				}
-			}
-			LOG_INFO << "UserServiceImpl::GetFriends: Retrieved friends from cache for user " << req->user_id();
-			r->set_code(mpim::Code::Ok);
-			r->set_msg("ok");
-			if (done) done->Run();
-			return;
-		}
-	}
-	
-	// 2. 缓存未命中，从数据库查询
 	char sql[512];
 	snprintf(sql, sizeof(sql), 
 		"SELECT friendid FROM friend WHERE userid=%d", (int)req->user_id());
@@ -347,32 +323,19 @@ void UserServiceImpl::GetFriends(google::protobuf::RpcController *,
 	MYSQL_RES *res = db_->query(sql);
 	if (!res)
 	{
-		LOG_ERROR << "UserServiceImpl::GetFriends: Database query failed for user " << req->user_id();
 		r->set_code(mpim::Code::INTERNAL);
 		r->set_msg("db query failed");
 		if (done) done->Run();
 		return;
 	}
 	
-	// 3. 处理查询结果并缓存
-	std::string friends_data;
 	MYSQL_ROW row;
 	while ((row = mysql_fetch_row(res)) != nullptr)
 	{
-		int64_t friend_id = atoll(row[0]);
-		resp->add_friend_ids(friend_id);
-		if (!friends_data.empty()) friends_data += ",";
-		friends_data += std::to_string(friend_id);
+		resp->add_friend_ids(atoll(row[0]));
 	}
 	mysql_free_result(res);
 	
-	// 4. 将查询结果写入缓存
-	if (user_cache_->IsConnected() && !friends_data.empty()) {
-		user_cache_->SetFriends(req->user_id(), friends_data, 1800); // 缓存30分钟
-		LOG_INFO << "UserServiceImpl::GetFriends: Cached friends list for user " << req->user_id();
-	}
-	
-	LOG_INFO << "UserServiceImpl::GetFriends: Retrieved " << resp->friend_ids_size() << " friends for user " << req->user_id();
 	r->set_code(mpim::Code::Ok);
 	r->set_msg("ok");
 	if (done) done->Run();
@@ -396,24 +359,12 @@ void UserServiceImpl::RemoveFriend(google::protobuf::RpcController *,
 	
 	if (!db_->update(sql1) || !db_->update(sql2))
 	{
-		LOG_ERROR << "UserServiceImpl::RemoveFriend: Failed to remove friend relationship between " << req->user_id() << " and " << req->friend_id();
 		r->set_code(mpim::Code::INTERNAL);
 		r->set_msg("remove friend failed");
 		if (done) done->Run();
 		return;
 	}
 	
-	// 更新Redis缓存中的好友关系
-	if (user_cache_->IsConnected()) {
-		user_cache_->RemoveFriend(req->user_id(), req->friend_id());
-		user_cache_->RemoveFriend(req->friend_id(), req->user_id());
-		// 清除好友列表缓存，强制下次查询时重新加载
-		user_cache_->DelFriends(req->user_id());
-		user_cache_->DelFriends(req->friend_id());
-		LOG_INFO << "UserServiceImpl::RemoveFriend: Updated friend relationship in cache";
-	}
-	
-	LOG_INFO << "UserServiceImpl::RemoveFriend: Successfully removed friend relationship between " << req->user_id() << " and " << req->friend_id();
 	r->set_code(mpim::Code::Ok);
 	r->set_msg("friend removed");
 	if (done) done->Run();

@@ -1,0 +1,26 @@
+# im-group 群组服务
+add_executable(im-groupd
+  src/main.cc
+  src/group_service.cc
+  src/group_cache.cc
+)
+
+target_include_directories(im-groupd PRIVATE
+  include
+  ${CMAKE_SOURCE_DIR}/im-common/include
+  ${CMAKE_SOURCE_DIR}/mprpc/src/include
+  ${CMAKE_SOURCE_DIR}/thirdparty/mysqldb/include
+  ${CMAKE_SOURCE_DIR}/thirdparty/redisclient/include
+)
+
+target_link_libraries(im-groupd PRIVATE
+  im-common
+  mprpc
+  mysqlclient
+  pthread
+  mysqldb
+  redisclient
+)
+
+# 安装到 bin 目录
+install(TARGETS im-groupd DESTINATION bin)
