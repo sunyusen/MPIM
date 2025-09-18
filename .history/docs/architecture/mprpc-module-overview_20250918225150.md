@@ -102,14 +102,15 @@ void MprpcChannel::CallMethod(const MethodDescriptor *method,
 ```
 
 - 服务端服务注册
-
+ 
 ```14:41:mprpc/src/rpcprovider.cc
 void RpcProvider::NotifyService(google::protobuf::Service *service) {
   // 读取 ServiceDescriptor/MethodDescriptor，填充 m_serviceMap
 }
 ```
 
-服务端启动与事件循环
+- 服务端启动与事件循环
+
 
 ```45:64:mprpc/src/rpcprovider.cc
 void RpcProvider::Run() {
@@ -126,7 +127,8 @@ server.start();
 m_eventLoop.loop();
 ```
 
-连接与读写回调
+- 连接与读写回调
+
 
 ```101:113:mprpc/src/rpcprovider.cc
 void RpcProvider::OnConnection(const TcpConnectionPtr &conn) {
@@ -192,5 +194,5 @@ sequenceDiagram
   - Register 在 ZK 的粒度是 `/service/method`；按此复用能对不同方法做更细致的 L4/负载策略，也简化缓存键。
 - 失败与重试？
   - 当前 `CallMethod` 在连接错误/发送接收失败时通过 `controller->SetFailed` 上报；如需重试/超时取消，可在通道层增加超时、回退策略。
-- 与 Reactor 的关系？
+ - 与 Reactor 的关系？
   - Provider 运行在 Muduo Reactor 上；Channel 在客户端是阻塞发送/接收（可扩展为非阻塞或 io_uring）。

@@ -100,16 +100,14 @@ void MprpcChannel::CallMethod(const MethodDescriptor *method,
 // 5) 读4字节长度 + 读 body → ParseFromArray(resp)
 // 6) 成功则归还连接到池
 ```
-
 - 服务端服务注册
-
 ```14:41:mprpc/src/rpcprovider.cc
 void RpcProvider::NotifyService(google::protobuf::Service *service) {
   // 读取 ServiceDescriptor/MethodDescriptor，填充 m_serviceMap
 }
 ```
 
-服务端启动与事件循环
+ - 服务端启动与事件循环
 
 ```45:64:mprpc/src/rpcprovider.cc
 void RpcProvider::Run() {
@@ -126,7 +124,7 @@ server.start();
 m_eventLoop.loop();
 ```
 
-连接与读写回调
+ - 连接与读写回调
 
 ```101:113:mprpc/src/rpcprovider.cc
 void RpcProvider::OnConnection(const TcpConnectionPtr &conn) {
