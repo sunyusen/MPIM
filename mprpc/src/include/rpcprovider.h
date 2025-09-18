@@ -34,7 +34,7 @@ private:
 	// service服务类型信息
 	struct ServiceInfo
 	{
-		google::protobuf::Service *m_service;													 // 保存服务对象
+		google::protobuf::Service *m_service;	// 保存服务对象
 		std::unique_ptr<google::protobuf::Service> m_service_owner; // 拥有服务对象的所有权
 		std::unordered_map<std::string, const google::protobuf::MethodDescriptor *> m_methodMap; // 保存服务方法
 		
