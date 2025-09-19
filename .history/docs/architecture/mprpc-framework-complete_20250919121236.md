@@ -97,33 +97,6 @@ RPC（Remote Procedure Call）是一种**进程间通信方式**，它通过网�
 - Proactor 对比：本框架不会在内核完成 I/O 后直接获得结果，需要在就绪回调中主动 `read/write`，但可控性更强、易于调优。
 
 #### 这种方案的好处
-#### 标准 Reactor 与本架构对比图
-
-```mermaid
-graph LR
-    subgraph 标准Reactor
-        A[Acceptor] --> B[Demultiplexer\n(epoll)]
-        B --> C1[Handler: OnAccept]
-        B --> C2[Handler: OnRead]
-        B --> C3[Handler: OnWrite]
-        C2 --> D1[业务处理]
-    end
-
-    subgraph 本框架(Muduo)
-        A2[TcpServer/Acceptor] --> B2[EventLoop\n(epoll)]
-        B2 --> C21[OnConnection]
-        B2 --> C22[OnMessage]
-        C22 --> D2[反序列化/定位方法]
-        D2 --> E2[业务线程池]
-    end
-
-    A -- 对比 --> A2
-    B -- 封装/抽象 --> B2
-    C1 -- 对应 --> C21
-    C2 -- 对应 --> C22
-    D1 -- 对应 --> E2
-```
-
 
 - 成熟稳定：Reactor + epoll 在 Linux 生态中经过大量验证，行为可预期。
 - 高性能：零额外内核态异步队列开销，低延迟，线程模型清晰。
