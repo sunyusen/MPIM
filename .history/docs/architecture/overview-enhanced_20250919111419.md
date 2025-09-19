@@ -46,7 +46,7 @@ graph TB
     subgraph "🔗 中间件层 (Middleware Layer)"
         direction TB
         subgraph "RPC通信框架"
-            RPC[🔗 自研RPC框架<br/>• protobuf序列化<br/>• 连接池管理<br/>• 负载均衡<br/>• 服务发现<br/>• 故障转移<br/>• 超时重试]
+            RPC[🔗 自研RPC框架<br/>• protobuf序列化<br/>• 连接池管理<br/>• 负载均衡<br/>• 服务发现<br/>• 故障转移<br/>• 超时重试<br/><br/>📖 详细分析见文档]
         end
         
         subgraph "服务治理中心"
@@ -159,7 +159,7 @@ sequenceDiagram
     participant C as 📱 客户端
     participant LB as ⚖️ 负载均衡器
     participant G as 🚪 网关服务
-    participant RPC as 🔗 RPC框架
+    participant RPC as 🔗 [RPC框架](mprpc-framework-complete.md)
     participant S as 🔧 微服务
     participant ZK as 🐘 ZooKeeper
     participant CACHE as 🗄️ Redis缓存

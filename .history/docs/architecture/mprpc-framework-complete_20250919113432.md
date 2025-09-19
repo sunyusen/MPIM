@@ -19,29 +19,25 @@ RPC（Remote Procedure Call）是一种**进程间通信方式**，它通过网�
 
 #### I/O架构对比
 
-##### Dubbo (Java)
-
+**Dubbo (Java)**
 - 基于Netty NIO
 - 事件驱动模型
 - 线程池处理业务逻辑
 - 适合高并发场景
 
-##### gRPC (多语言)
-
+**gRPC (多语言)**
 - 基于HTTP/2
 - 多路复用
 - 流式传输
 - 现代网络协议
 
-##### Thrift (多语言)
-
+**Thrift (多语言)**
 - 基于TTransport抽象
 - 支持多种传输方式
 - 跨语言兼容性好
 - 性能较高
 
-##### mprpc (C++)
-
+**mprpc (C++)**
 - 基于Muduo网络库
 - Reactor模式
 - epoll事件驱动
@@ -51,7 +47,7 @@ RPC（Remote Procedure Call）是一种**进程间通信方式**，它通过网�
 
 ### 2.1 整体架构
 
-```text
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        mprpc RPC框架                            │
 ├─────────────────────────────────────────────────────────────────┤
@@ -77,32 +73,7 @@ RPC（Remote Procedure Call）是一种**进程间通信方式**，它通过网�
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 模型选择：Reactor vs Proactor（本框架采用的是什么？）
-
-#### 概念对比
-
-- Reactor（就绪驱动）：内核只负责“通知就绪”，应用在就绪后主动执行读写。典型实现：Linux epoll + 事件循环（Muduo）。
-- Proactor（完成驱动）：应用提交异步 I/O，内核完成后“通知完成”，回调中直接拿到结果。典型实现：Windows IOCP、Linux io_uring。
-
-#### 本框架采用
-
-- mprpc 服务端明确采用 Reactor 架构：Muduo 的 `EventLoop`/`TcpServer` 基于 epoll 的就绪通知；`OnConnection`/`OnMessage` 属于 Reactor 的事件处理器。
-- 客户端当前使用阻塞 socket 的同步调用模型（非 Muduo），但协议与服务发现与服务端一致，可演进为 Muduo/异步实现。
-
-#### 与“标准 Reactor”实现的差异
-
-- 事件复用器：标准 Reactor 的“Demultiplexer”在本框架由 Muduo 封装（内部是 epoll）。
-- 并发模型：采用“one loop per thread”+ 线程池（`TcpServer::setThreadNum(n)`），与单线程 Reactor 相比提升多核利用率。
-- 业务与网络解耦：Muduo 将连接管理、缓冲区、回调生命周期管理抽象出来，减少粘连代码（相比手写 epoll 更安全）。
-- Proactor 对比：本框架不会在内核完成 I/O 后直接获得结果，需要在就绪回调中主动 `read/write`，但可控性更强、易于调优。
-
-#### 这种方案的好处
-
-- 成熟稳定：Reactor + epoll 在 Linux 生态中经过大量验证，行为可预期。
-- 高性能：零额外内核态异步队列开销，低延迟，线程模型清晰。
-- 易扩展：回调粒度可控，便于按连接/按消息限流、观测、埋点。
-
-### 2.3 设计理念
+### 2.2 设计理念
 
 1. **简单易用** - 像调用本地函数一样调用远程函数
 2. **高性能** - 基于Muduo网络库，支持高并发
@@ -110,26 +81,6 @@ RPC（Remote Procedure Call）是一种**进程间通信方式**，它通过网�
 4. **可靠性** - 完整的错误处理和连接管理
 
 ## 3. 核心功能实现
-
-### 3.0 总览时序（客户端→服务端）
-
-```mermaid
-sequenceDiagram
-    participant Client as 客户端业务
-    participant Channel as MprpcChannel(客户端)
-    participant ZK as ZooKeeper
-    participant Server as RpcProvider(服务端)
-    participant Muduo as Muduo EventLoop
-
-    Client->>Channel: 调用 Stub.Method(req)
-    Channel->>ZK: 查询 /Service/Method 地址（带本地TTL缓存）
-    ZK-->>Channel: 返回 ip:port
-    Channel->>Server: TCP 发送 长度前缀 + RpcHeader + args
-    Server->>Muduo: epoll 就绪触发 OnMessage
-    Muduo-->>Server: 取帧、反序列化、定位 service/method
-    Server-->>Channel: 序列化 response 并发送
-    Channel-->>Client: 返回响应
-```
 
 ### 3.1 服务注册和发现
 
@@ -171,23 +122,6 @@ void RpcProvider::Run() {
                     strlen(method_path_data), ZOO_EPHEMERAL);
     }
 }
-```
-
-#### 为什么选择 ZooKeeper（原理与优势）
-
-- 强一致性（ZAB 协议）：服务注册表在节点故障时仍具一致性保障，避免读到脏地址。
-- 会话+临时节点：当 Provider 宕机/网络隔离时，其临时节点自动删除，客户端不会继续拿到无效实例。
-- Watch 机制：可在客户端订阅节点变化，配合本地缓存实现“变更驱动”的地址刷新。
-
-```mermaid
-graph LR
-    subgraph ZooKeeper命名空间
-        S[/UserService/]
-        S --> M1[/Login/ -> 127.0.0.1:8010]
-        S --> M2[/Register/ -> 127.0.0.1:8010]
-    end
-    Client[客户端] -- GetData/Watch --> S
-    note right of Client: 本地缓存TTL=1s，或收到Watch事件立即刷新
 ```
 
 #### 服务发现机制
@@ -297,8 +231,6 @@ void global_watcher(zhandle_t *zh, int type, int state, const char *path, void *
 }
 ```
 
-> 深入阅读：稍后补充《ZooKeeper 深入解析与在 MPIM 中的实践》文档（占位）
-
 ### 3.2 网络通信
 
 #### 客户端连接
@@ -353,15 +285,6 @@ void RpcProvider::Run() {
 }
 ```
 
-Muduo 用法与特点（为何选择）
-
-- 事件驱动：`EventLoop` 封装 epoll/回调注册，避免手写状态机和边缘条件。
-- 线程模型：`TcpServer::setThreadNum(n)` 多 IO 线程 + 业务线程，提升并发与 CPU 利用率。
-- 安全高效：内置 `Buffer`、生命周期与上下文管理，减少内存/FD 泄漏风险。
-- 生态成熟：广泛用于生产环境，文档与社区完善。
-
-> 深入阅读：稍后补充《Muduo 网络库实践与最佳实践》文档（占位）
-
 ### 3.3 网络传输协议
 
 #### 消息格式设计
@@ -373,12 +296,6 @@ Muduo 用法与特点（为何选择）
 │   (4字节)   │ (protobuf)  │   (4字节)   │ (protobuf)  │
 └─────────────┴─────────────┴─────────────┴─────────────┘
 ```
-
-#### 粘包/拆包问题与解决
-
-- 粘包/拆包是 TCP 字节流语义导致的接收方边界不明问题：发送端的多次 `send` 可能在接收端一次 `recv` 中合并（粘包），或一个应用消息被拆成多次 `recv`（拆包）。
-- 常见解决方案：固定长度帧、分隔符（如 `\n`）、长度前缀（最常见）。
-- 本框架在 mprpc 使用“长度前缀 + Protobuf”方案；在网关的文本协议中使用按行读取（`\n` 分隔）。
 
 **RpcHeader定义**：
 ```protobuf
@@ -471,14 +388,6 @@ void RpcProvider::OnMessage(const muduo::net::TcpConnectionPtr &conn,
 }
 ```
 
-#### 为什么选择 Protobuf
-
-- 高效二进制：更小的载荷、更快的编解码，适合 RPC 高频调用。
-- 强 Schema：IDL 明确字段编号，天然支持前向/后向兼容。
-- 广泛生态：工具链成熟，跨语言支持良好。
-
-> 深入阅读：稍后补充《Protobuf 序列化机制与兼容性策略》文档（占位）
-
 ### 3.4 序列化/反序列化
 
 **基于Protobuf**：
@@ -540,15 +449,6 @@ void MprpcChannel::returnConnection(const std::string& key, int clientfd) {
 - 通过ZooKeeper注册多个服务实例
 - 客户端可以从多个实例中选择
 - 当前实现为简单轮询（代码中未完全实现）
-
-#### 现状与可扩展方案
-
-- 现状：`/Service/Method` 目前注册为单实例地址字符串。如需多实例，应改为“子节点模式”，即每个实例创建一个临时子节点，`GetChildren` 返回所有实例，再做本地选择。
-- 可选策略：
-  - 轮询（Round-Robin）：实现简单、效果稳定。
-  - 最少连接（Least-Connections）：适合长连接请求。
-  - 一致性哈希：适合有会话/有状态请求，提升命中与局部性。
-- 动态更新：通过 ZK Watch 感知实例上下线，原子更新本地实例表，避免使用过期地址。
 
 ### 3.7 错误处理
 
@@ -622,11 +522,6 @@ m_eventLoop.loop(); // 事件循环
 - 多线程处理业务逻辑
 - 避免线程切换开销
 
-#### 与 Proactor 的对比与取舍
-
-- Proactor（如 io_uring）由内核完成 I/O，更适合磁盘/大批量 I/O 及极致低延迟场景，但编程模型较复杂，回退策略/错误处理需要更多工程化。
-- 本项目选择 Reactor + epoll + Muduo，兼顾性能与可维护性；后续可在热点路径评估引入 io_uring 的收益。
-
 ### 4.4 TCP_NODELAY优化
 
 **禁用Nagle算法**：
@@ -645,12 +540,6 @@ setsockopt(clientfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 - 立即发送小包
 - 降低延迟，提高响应速度
 - 适合RPC这种对延迟敏感的场景
-
-### 4.5 其他可选优化（尚未实现，方向建议）
-
-- Reader/Writer 线程分离与 NUMA 亲和、连接分片（sharding）。
-- Buffer 复用与对象池，减少频繁分配/释放。
-- 指标与可观测性：队列长度、消息大小分布、P99 延迟，驱动容量规划。
 
 ## 5. 使用示例
 
