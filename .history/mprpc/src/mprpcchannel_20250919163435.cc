@@ -126,11 +126,7 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
 
 // 这什么用法
 // 函数定义与mutex, call_once保证可调用对象只被执行一次,防止多次初始化zk客户端
-// s_zk_once:标志对象,用于指示_Fx是否已被调用过
-// 如果在调用call_once时,标志对象已设置,则不会调用可调用对象
-// 如果在调用call_once时,标志对象未设置,则调用可调用对象,并设置标志对象
-// 这样可以确保zk客户端只初始化一次,防止多次初始化zk客户端带来的性能开销
-// 如果需要多次初始化zk客户端,可以多次调用call_once,每次调用时,标志对象都会被设置,但可调用对象只会被执行一次
+// s_zk_once:标志对象
     std::call_once(s_zk_once, [](){ s_zk.Start(); });
 
 	//构造方法路径
@@ -140,7 +136,6 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
 
 	// 检查缓存中是否存在对应的服务地址
 	// 如果缓存未过期，直接返回缓存的地址
-	// 这里直接通过 时间来进行缓存过期判断
     {
         std::lock_guard<std::mutex> lk(s_cache_mu);
         auto it = s_addr_cache.find(method_path);
@@ -151,14 +146,12 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
         }
     }
 
-// 从zookeeper获取服务地址
     std::string host_data = s_zk.GetData(method_path.c_str());
     if (host_data.empty())
     {
         controller->SetFailed(method_path + " is not exist!");
         return false;
     }
-// 解析服务地址
     int idx = host_data.find(":");
     if (idx == -1)
     {
@@ -167,11 +160,11 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
     }
     std::string ip = host_data.substr(0, (size_t)idx);
     uint16_t port = (uint16_t)atoi(host_data.substr((size_t)idx + 1).c_str());
-// 填充sockaddr_in结构
+
     out.sin_family = AF_INET;
     out.sin_port = htons(port);
     out.sin_addr.s_addr = inet_addr(ip.c_str());
-// 更新地址缓存
+
     {
         std::lock_guard<std::mutex> lk(s_cache_mu);
         s_addr_cache[method_path] = CacheEntry{out, now_tp + ttl};
@@ -182,20 +175,16 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
 // 获取一个TCP连接的文件描述符，实现了一个简单的连接池机制，用于复用已有的连接，避免频繁创建和销毁连接带来的性能开销
 int MprpcChannel::getConnection(const std::string& key, const struct sockaddr_in& addr)
 {
-    static std::mutex s_pool_mu;	//一个静态的互斥锁，用于包含连接池的线程安全
-	// 一个静态的哈希表，用于存储连接池
+    static std::mutex s_pool_mu;
     static std::unordered_map<std::string, std::vector<int>> s_conn_pool;
-	// 每个key对应的连接池的最大连接数
     static const size_t kMaxPoolPerKey = 64;
 
-// 从连接池中获取连接
     {
         std::lock_guard<std::mutex> lk(s_pool_mu);
-		// 根据key获取对应的连接池
         auto &vec = s_conn_pool[key];
         if (!vec.empty()) { int fd = vec.back(); vec.pop_back(); return fd; }
     }
-// 如果连接池中没有可用连接，则创建一个新的连接
+
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) return -1;
 #ifdef TCP_NODELAY
@@ -224,7 +213,6 @@ bool MprpcChannel::sendAll(int fd, const char* data, size_t len, google::protobu
 {
     const char* p = data;
     size_t left = len;
-	// 只要还要数据未发送，就继续发送
     while (left > 0)
     {
         ssize_t n = ::send(fd, p, left, 0);
@@ -237,10 +225,8 @@ bool MprpcChannel::sendAll(int fd, const char* data, size_t len, google::protobu
     return true;
 }
 
-// 从指定的文件描述符中接收一个完整的响应消息，并解析
 bool MprpcChannel::recvResponse(int fd, google::protobuf::Message* response, google::protobuf::RpcController* controller)
 {
-	// 接收消息长度
     uint32_t resp_len = 0;
     int recvd = 0;
     char lenbuf[4];
@@ -256,7 +242,6 @@ bool MprpcChannel::recvResponse(int fd, google::protobuf::Message* response, goo
     }
     ::memcpy(&resp_len, lenbuf, 4);
 
-// 接收消息体
     std::string resp_buf;
     resp_buf.resize(resp_len);
     size_t got = 0;
@@ -271,7 +256,6 @@ bool MprpcChannel::recvResponse(int fd, google::protobuf::Message* response, goo
         return false;
     }
 
-// 解析消息
     if (!response->ParseFromArray(resp_buf.data(), (int)resp_buf.size()))
     {
         controller->SetFailed("parse response error!");
