@@ -46,7 +46,7 @@ graph TB
     subgraph "🔗 中间件层 (Middleware Layer)"
         direction TB
         subgraph "RPC通信框架"
-            RPC[🔗 自研RPC框架<br/>• protobuf序列化<br/>• 连接池管理<br/>• 负载均衡<br/>• 服务发现<br/>• 故障转移<br/>• 超时重试<br/><br/>📖 [详细分析](mprpc-framework-complete.md)]
+            RPC[🔗 自研RPC框架<br/>• protobuf序列化<br/>• 连接池管理<br/>• 负载均衡<br/>• 服务发现<br/>• 故障转移<br/>• 超时重试]
         end
         
         subgraph "服务治理中心"
@@ -159,7 +159,7 @@ sequenceDiagram
     participant C as 📱 客户端
     participant LB as ⚖️ 负载均衡器
     participant G as 🚪 网关服务
-    participant RPC as 🔗 [RPC框架](mprpc-framework-complete.md)
+    participant RPC as 🔗 RPC框架
     participant S as 🔧 微服务
     participant ZK as 🐘 ZooKeeper
     participant CACHE as 🗄️ Redis缓存
@@ -263,47 +263,29 @@ graph LR
 ## 架构特点分析
 
 ### 1. 分层设计原则
-
 - **职责单一**: 每层只负责特定的功能
 - **松耦合**: 层与层之间通过接口交互
 - **高内聚**: 同层组件紧密协作
 - **可扩展**: 支持水平扩展和垂直扩展
 
 ### 2. 技术选型理由
-
 - **C++**: 高性能、低延迟、内存控制精确
 - **Muduo**: 高性能网络库、事件驱动、多线程
 - **Redis**: 高性能缓存、消息队列、数据结构丰富
 - **MySQL**: 关系型数据库、ACID特性、成熟稳定
 - **ZooKeeper**: 分布式协调、服务发现、配置管理
-- **mprpc**: [自研RPC框架](mprpc-framework-complete.md) - 基于Protobuf、支持服务发现、连接池管理
 
 ### 3. 性能优化策略
-
 - **连接池**: 复用网络连接，减少建立连接开销
 - **缓存层**: 减少数据库访问，提高响应速度
 - **异步处理**: 提高并发处理能力
 - **负载均衡**: 分散请求压力，提高系统吞吐量
 
 ### 4. 可靠性保障
-
 - **服务发现**: 自动故障检测和转移
 - **数据备份**: 主从同步，数据不丢失
 - **监控告警**: 实时监控系统状态
 - **日志追踪**: 问题定位和性能分析
-
-## 相关文档
-
-### RPC框架详细分析
-
-- [mprpc RPC框架完整分析](mprpc-framework-complete.md) - mprpc RPC框架的完整技术分析
-- [mprpc调用序列图](mprpc-call-sequence.md) - RPC调用的详细流程图和序列图
-
-### 其他架构文档
-
-- [用户服务架构](user-service-architecture.md) - 用户服务的详细设计
-- [消息服务架构](message-service-architecture.md) - 消息服务的详细设计
-- [群组服务架构](group-service-architecture.md) - 群组服务的详细设计
 
 ## 总结
 

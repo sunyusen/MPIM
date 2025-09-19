@@ -46,7 +46,7 @@ graph TB
     subgraph "🔗 中间件层 (Middleware Layer)"
         direction TB
         subgraph "RPC通信框架"
-            RPC[🔗 自研RPC框架<br/>• protobuf序列化<br/>• 连接池管理<br/>• 负载均衡<br/>• 服务发现<br/>• 故障转移<br/>• 超时重试<br/><br/>📖 [详细分析](mprpc-framework-complete.md)]
+            RPC[🔗 自研RPC框架<br/>• protobuf序列化<br/>• 连接池管理<br/>• 负载均衡<br/>• 服务发现<br/>• 故障转移<br/>• 超时重试]
         end
         
         subgraph "服务治理中心"
@@ -159,7 +159,7 @@ sequenceDiagram
     participant C as 📱 客户端
     participant LB as ⚖️ 负载均衡器
     participant G as 🚪 网关服务
-    participant RPC as 🔗 [RPC框架](mprpc-framework-complete.md)
+    participant RPC as 🔗 RPC框架
     participant S as 🔧 微服务
     participant ZK as 🐘 ZooKeeper
     participant CACHE as 🗄️ Redis缓存
@@ -276,7 +276,6 @@ graph LR
 - **Redis**: 高性能缓存、消息队列、数据结构丰富
 - **MySQL**: 关系型数据库、ACID特性、成熟稳定
 - **ZooKeeper**: 分布式协调、服务发现、配置管理
-- **mprpc**: [自研RPC框架](mprpc-framework-complete.md) - 基于Protobuf、支持服务发现、连接池管理
 
 ### 3. 性能优化策略
 
@@ -292,19 +291,12 @@ graph LR
 - **监控告警**: 实时监控系统状态
 - **日志追踪**: 问题定位和性能分析
 
-## 相关文档
-
-### RPC框架详细分析
-
-- [mprpc RPC框架完整分析](mprpc-framework-complete.md) - mprpc RPC框架的完整技术分析
-- [mprpc调用序列图](mprpc-call-sequence.md) - RPC调用的详细流程图和序列图
-
-### 其他架构文档
-
-- [用户服务架构](user-service-architecture.md) - 用户服务的详细设计
-- [消息服务架构](message-service-architecture.md) - 消息服务的详细设计
-- [群组服务架构](group-service-architecture.md) - 群组服务的详细设计
-
 ## 总结
 
 MPIM系统采用现代化的微服务架构，通过分层设计实现了高性能、高可用、可扩展的即时通讯服务。系统各层职责明确，技术选型合理，性能优化到位，可靠性保障充分，是一个典型的分布式系统架构实践案例。
+
+### 进一步阅读
+
+- mprpc 与 Reactor 模型的对应关系与时序图：参见 `docs/architecture/rpc-reactor-mapping.md`
+- mprpc 模块类/方法级别总览：参见 `docs/architecture/mprpc-module-overview.md`
+- RpcProvider 与 MprpcChannel 详解（方法级 + 时序）：参见 `docs/architecture/mprpc-provider-channel.md`
