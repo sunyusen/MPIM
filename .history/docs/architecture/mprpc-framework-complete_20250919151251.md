@@ -133,24 +133,6 @@ graph LR
 - 高性能：零额外内核态异步队列开销，低延迟，线程模型清晰。
 - 易扩展：回调粒度可控，便于按连接/按消息限流、观测、埋点。
 
-#### Reactor 模型映射（项目内对应关系）
-
-- Reactor（事件循环）: `muduo::net::EventLoop`（one loop per thread）
-- Demultiplexer（事件分发器）: Muduo 内部 `Poller/EpollPoller`（基于 epoll）
-- Acceptor（主 Reactor 接入）: `muduo::net::TcpServer` 内部 `Acceptor`（监听/accept 新连接）
-- SubReactor（I/O 线程）: `TcpServer::setThreadNum(N)` 派生出的 N 个 I/O 线程，每个线程一个 `EventLoop`
-- EventHandler（事件处理器）: `OnConnection`、`OnMessage`（分别处理连接建立/断开与读写就绪）
-- 业务处理路径: `OnMessage` → 帧解析（长度前缀+protobuf）→ 查表定位 `Service.Method` → `Service::CallMethod` → `SendRpcResponse`
-- 网关（im-gateway）: 同样是 Muduo Reactor；此外订阅 Redis 通道，将 Presence/Message 推送的在线消息写回到客户端连接
-
-```mermaid
-graph TB
-    A["TcpServer/Acceptor\n主Reactor"] --> B["EventLoop (I/O线程)\nSubReactor"]
-    B --> C["OnConnection / OnMessage\n事件处理器"]
-    C --> D["解析帧/定位Service.Method"]
-    D --> E["CallMethod(业务) → SendRpcResponse"]
-```
-
 ### 2.3 设计理念
 
 1. **简单易用** - 像调用本地函数一样调用远程函数
