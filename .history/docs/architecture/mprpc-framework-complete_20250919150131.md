@@ -213,13 +213,13 @@ void RpcProvider::Run() {
 
 ```mermaid
 graph LR
-    subgraph ZK_命名空间
-        ZS[/UserService/]
-        ZS --> ZM1["/Login (临时节点)<br/>data: 127.0.0.1:8010"]
-        ZS --> ZM2["/Register (临时节点)<br/>data: 127.0.0.1:8010"]
+    subgraph ZooKeeper命名空间
+        S[/UserService/]
+        S --> M1[/Login/ -> 127.0.0.1:8010]
+        S --> M2[/Register/ -> 127.0.0.1:8010]
     end
-    Client[客户端] -- GetData / Watch --> ZS
-    Client -. 缓存TTL=1s/变更刷新 .-> ZS
+    Client[客户端] -- GetData/Watch --> S
+    note right of Client: 本地缓存TTL=1s，或收到Watch事件立即刷新
 ```
 
 #### 服务发现机制
