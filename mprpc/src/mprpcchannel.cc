@@ -69,15 +69,18 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
 }
 
 // ---- helpers ----
+// 构建一个RPC请求的序列化数据帧
 bool MprpcChannel::buildRequestFrame(const google::protobuf::MethodDescriptor* method,
                                      const google::protobuf::Message* request,
                                      std::string& out,
                                      google::protobuf::RpcController* controller)
 {
+	// 从MethodDescriptor中提取服务名和方法名
     const google::protobuf::ServiceDescriptor *sd = method->service();
     std::string service_name = sd->name();
     std::string method_name = method->name();
 
+	// 序列化请求参数
     std::string args_str;
     if (!request->SerializeToString(&args_str))
     {
@@ -85,6 +88,7 @@ bool MprpcChannel::buildRequestFrame(const google::protobuf::MethodDescriptor* m
         return false;
     }
 
+	// 构造RPC请求头
     mprpc::RpcHeader header;
     header.set_service_name(service_name);
     header.set_method_name(method_name);
@@ -97,6 +101,7 @@ bool MprpcChannel::buildRequestFrame(const google::protobuf::MethodDescriptor* m
         return false;
     }
 
+	//构造完整的请求帧
     uint32_t header_size = (uint32_t)header_str.size();
     out.clear();
     out.reserve(4 + header_str.size() + args_str.size());
@@ -106,6 +111,7 @@ bool MprpcChannel::buildRequestFrame(const google::protobuf::MethodDescriptor* m
     return true;
 }
 
+// 解析RPC服务的网络地址，并将结果存储到sockaddr_in结构中。他通过检查本地缓存或从zookeeper获取服务地址，确保高效且准确地服务端点
 bool MprpcChannel::resolveEndpoint(const std::string& service,
                                    const std::string& method,
                                    struct sockaddr_in& out,
@@ -113,11 +119,12 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
 {
     using namespace std::chrono;
     struct CacheEntry { sockaddr_in addr; steady_clock::time_point expire; };
-    static std::once_flag s_zk_once;
-    static ZkClient s_zk;
-    static std::mutex s_cache_mu;
-    static std::unordered_map<std::string, CacheEntry> s_addr_cache;
+    static std::once_flag s_zk_once;	//确保zookeeper客户端只初始化一次
+    static ZkClient s_zk;			// zookeeper客户端，用于从zookeeper获取服务地址
+    static std::mutex s_cache_mu;	//互斥锁，保护地址缓存的线程安全
+    static std::unordered_map<std::string, CacheEntry> s_addr_cache;//地址缓存，存储服务方法对应的网络地址及其过期时间
 
+// 这什么用法
     std::call_once(s_zk_once, [](){ s_zk.Start(); });
 
     const std::string method_path = "/" + service + "/" + method;
@@ -160,6 +167,7 @@ bool MprpcChannel::resolveEndpoint(const std::string& service,
     return true;
 }
 
+// 获取一个TCP连接的文件描述符，实现了一个简单的连接池机制，用于复用已有的连接，避免频繁创建和销毁连接带来的性能开销
 int MprpcChannel::getConnection(const std::string& key, const struct sockaddr_in& addr)
 {
     static std::mutex s_pool_mu;
