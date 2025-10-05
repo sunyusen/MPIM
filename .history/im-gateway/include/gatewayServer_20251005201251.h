@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 #include <cstddef>
-#include <shared_mutex>
 
 // mprpc
 #include "mprpcchannel.h"
@@ -101,9 +100,10 @@ private:
     muduo::net::TcpServer server_;
     std::string gateway_id_;
 
+    // 连接名 -> 会话
+    std::unordered_map<std::string, Session> sessions_;
 	// uid -> 连接（在线快速下发）
 	std::unordered_map<int64_t, WeakConn> uid2conn_;
-	mutable std::shared_mutex uid2conn_mutex_;  // 保护 uid2conn_ 的读写锁
 
     // RPC stubs（各自使用一个 channel）
     std::unique_ptr<MprpcChannel> ch_user_;

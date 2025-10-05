@@ -331,7 +331,7 @@ void Client::prettyPrintLine(const std::string &line)
 
 	if (line.rfind("+OK welcome", 0) == 0)
 	{
-		std::cout << "\r已连接网关。可用命令：login:<user>:<pwd> | chat:<对方uid>:<消息> | register:<user>:<pwd> | pull | help | quit\n";
+		std::cout << "\r已连接网关。可用命令：login:<user>:<pwd> | chat:<uid>:<text> | register:<user>:<pwd> | pull | help | quit\n";
 	}
 	else if (line.rfind("+OK uid=", 0) == 0)
 	{
@@ -346,7 +346,7 @@ void Client::prettyPrintLine(const std::string &line)
 			uid_.store(0);
 		}
 		handleLoginResponse();
-		std::cout << "\r✅ login success，你的uid=" << uid_ << "。发消息：chat:<对方uid>:<消息>，拉取离线消息：pull\n";
+		std::cout << "\r✅ login success，uid=" << uid_ << "。现在可以 chat:<uid>:<text> 或 pull。\n";
 	}
 	else if (line.rfind("+OK msg_id=", 0) == 0)
 	{

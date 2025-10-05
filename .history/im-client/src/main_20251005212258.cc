@@ -43,8 +43,8 @@ int main(int argc, char **argv)
 	client.start();
 
 	cout << "MPIM 客户端已启动：连接 " << host << ":" << port << "\n"
-		 << "命令：login:<user>:<pwd> | chat:<对方uid>:<消息> | pull | help | quit\n"
-		 << "例如：login:alice:123456  或  chat:11:你好 (给用户11发消息)\n";
+		 << "命令：login:<user>:<pwd> | chat:<uid>:<text> | pull | help | quit\n"
+		 << "例如：login:alice:123456  或  chat:11:hello\n";
 
 	CommandHandler cmdHandler(&client);
 	string command;

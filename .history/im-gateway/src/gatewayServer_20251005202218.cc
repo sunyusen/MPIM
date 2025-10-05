@@ -50,12 +50,7 @@ void GatewayServer::sendLine(const TcpConnectionPtr &c, const std::string &s)
 
 GatewayServer::Session &GatewayServer::sessionOf(const TcpConnectionPtr &c)
 {
-    // 将会话状态存放在连接的 context 中，避免全局 sessions_ 容器
-    if (!c->getContext().empty()) {
-        return *boost::any_cast<Session>(c->getMutableContext());
-    }
-    c->setContext(Session{});
-    return *boost::any_cast<Session>(c->getMutableContext());
+	return sessions_[c->name()];
 }
 
 // 把网关id映射成一个50000以内的整数，用于Redis Pub/Sub通道
@@ -182,46 +177,43 @@ void GatewayServer::handleRedisMessage(const std::string &payload)
 // 连接回调
 void GatewayServer::onConnection(const TcpConnectionPtr &c)
 {
-    // 如果连接建立，为该连接创建一个空的 Session(未认证)
-    if (c->connected())
-    {
-        LOG_INFO << "conn up: " << c->peerAddress().toIpPort() << " name=" << c->name();
-        c->setContext(Session{});
-        sendLine(c, "+OK welcome. Commands: REGISTER/LOGIN/SEND/PULL");
-    }
-    else	// 如果连接断开，将对应uid的连接映射删除，并更新用户状态为离线
-    {
-        LOG_INFO << "conn down: " << c->name();
+	// 如果连接建立，为该连接名创建一个空的session(未认证)
+	if (c->connected())
+	{
+		LOG_INFO << "conn up: " << c->peerAddress().toIpPort() << " name=" << c->name();
+		sessions_.emplace(c->name(), Session{});
+		sendLine(c, "+OK welcome. Commands: REGISTER/LOGIN/SEND/PULL");
+	}
+	else	// 如果连接断开，将对应uid的连接映射删除，并更新用户状态为离线
+	{
+		LOG_INFO << "conn down: " << c->name();
 
-        // 从 context 读取 Session
-        if (!c->getContext().empty())
-        {
-            Session* psess = boost::any_cast<Session>(c->getMutableContext());
-            if (psess && psess->authed)
-            {
-                int64_t uid = psess->uid;
-                {
-                    std::unique_lock<std::shared_mutex> lock(uid2conn_mutex_);
-                    uid2conn_.erase(uid);
-                }
-
-                // 更新用户状态为离线
-                mpim::LogoutReq req;
-                req.set_user_id(uid);
-                req.set_token(psess->token);
-                mpim::LogoutResp resp;
-                MprpcController ctl;
-                user_->Logout(&ctl, &req, &resp, nullptr);
-                if (ctl.Failed()) {
-                    LOG_ERROR << "Failed to update user state to offline for uid=" << uid;
-                } else {
-                    LOG_INFO << "User " << uid << " state updated to offline due to connection close";
-                }
-            }
-        }
-        // context 将在连接析构时释放
-        // TODO: 可在这里做心跳/TTL 的路由过期，或交由 presence 的 TTL 管理
-    }
+		// 清理 uid->conn 映射和用户状态
+		auto it = sessions_.find(c->name());
+		if (it != sessions_.end() && it->second.authed)
+		{
+			int64_t uid = it->second.uid;
+			{
+				std::unique_lock<std::shared_mutex> lock(uid2conn_mutex_);
+				uid2conn_.erase(uid);
+			}
+			
+			// 更新用户状态为离线
+			mpim::LogoutReq req;
+			req.set_user_id(uid);
+			req.set_token(it->second.token);
+			mpim::LogoutResp resp;
+			MprpcController ctl;
+			user_->Logout(&ctl, &req, &resp, nullptr);
+			if (ctl.Failed()) {
+				LOG_ERROR << "Failed to update user state to offline for uid=" << uid;
+			} else {
+				LOG_INFO << "User " << uid << " state updated to offline due to connection close";
+			}
+		}
+		sessions_.erase(c->name());
+		// TODO: 可在这里做心跳/TTL 的路由过期，或交由 presence 的 TTL 管理
+	}
 }
 
 // DOC: onMessage 行分隔协议（网关侧接入协议）
@@ -350,10 +342,7 @@ bool GatewayServer::handleREGISTER(const TcpConnectionPtr &c, const std::vector<
 	sess.token = "tok_" + std::to_string(resp.user_id());
 	
 	// 连接映射（用于推送在线消息）
-	{
-		std::unique_lock<std::shared_mutex> lock(uid2conn_mutex_);
-		uid2conn_[sess.uid] = c;
-	}
+	uid2conn_[sess.uid] = c;
 	
 	// 绑定路由
 	mpim::BindRouteReq br;
@@ -399,10 +388,7 @@ bool GatewayServer::handleLOGIN(const TcpConnectionPtr &c, const std::vector<std
 	sess.token = resp.token();
 
 	// 连接映射（用于推送在线消息）
-	{
-		std::unique_lock<std::shared_mutex> lock(uid2conn_mutex_);
-		uid2conn_[sess.uid] = c;
-	}
+	uid2conn_[sess.uid] = c;
 	
 	// 绑定路由
 	mpim::BindRouteReq br;
@@ -537,10 +523,7 @@ bool GatewayServer::handleLOGOUT(const TcpConnectionPtr &c, const std::vector<st
 	}
 
 	// 清理会话状态
-	{
-		std::unique_lock<std::shared_mutex> lock(uid2conn_mutex_);
-		uid2conn_.erase(sess.uid);
-	}
+	uid2conn_.erase(sess.uid);
 	sess.authed = false;
 	sess.uid = 0;
 	sess.token.clear();
