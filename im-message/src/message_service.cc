@@ -12,7 +12,7 @@ MessageServiceImpl::MessageServiceImpl()
 		ch_presence_.reset(new MprpcChannel());
 		presence_.reset(new mpim::PresenceService_Stub(ch_presence_.get()));
 		
-			LOG_INFO << "MessageServiceImpl: Initialized with Presence RPC channel and OfflineModel";
+		LOG_INFO << "MessageServiceImpl: Initialized with Presence RPC channel and OfflineModel";
 		
 		// 检查初始化是否成功
 		if (!ch_presence_) {

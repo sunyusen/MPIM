@@ -17,7 +17,7 @@ PresenceServiceImpl::PresenceServiceImpl()
 	// Try to connect to Redis with retry logic
 	int retry_count = 0;
 	const int max_retries = 3;
-	
+	//同时尝试连接redis缓存与消息队列，最多重试3次，每次失败间隔1秒
 	while (retry_count < max_retries) {
 		if (cache_manager_.Connect() && message_queue_.Connect()) {
 			LOG_INFO << "Redis cache manager and message queue connected successfully";
@@ -46,7 +46,7 @@ void PresenceServiceImpl::BindRoute(google::protobuf::RpcController *,
 									mpim::BindRouteResp *resp,
 									google::protobuf::Closure *done)
 {
-	std::string route_key = RouteKey(req->user_id());
+	std::string route_key = RouteKey(req->user_id());	//生成Redis key
 	LOG_DEBUG << "BindRoute: user_id=" << req->user_id() << 
 			  " gateway_id=" << req->gateway_id() << 
 			  " route_key=" << route_key;
@@ -68,6 +68,8 @@ void PresenceServiceImpl::BindRoute(google::protobuf::RpcController *,
 	
 	// 设置键值对并指定过期时间
 	try {
+		// 将用户ID作为键和网关ID作为值写入Redis，设置过期时间为120秒
+		// 当前没有使用device，不支持多设备登录
 		if (cache_manager_.Setex(route_key, 120, req->gateway_id()))
 		{
 			LOG_INFO << "Route bound successfully for user " << req->user_id();
@@ -137,7 +139,7 @@ void PresenceServiceImpl::QueryRoute(google::protobuf::RpcController *,
 		done->Run();
 }
 
-// 
+// 把消息投递到接收者当前所在的网关通道
 void PresenceServiceImpl::Deliver(google::protobuf::RpcController *,
 								  const mpim::DeliveReq *req,
 								  mpim::DeliveResp *resp,

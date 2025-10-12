@@ -76,7 +76,7 @@ GatewayServer::GatewayServer(EventLoop *loop, const InetAddress &addr, const std
 								  { onConnection(c); });
 	server_.setMessageCallback([this](const TcpConnectionPtr &c, Buffer *b, Timestamp t)
 							   { onMessage(c, b, t); });
-	server_.setThreadNum(4); // 设置4个subReactor,可按需调整
+	server_.setThreadNum(1); // 设置4个subReactor,可按需调整
 
 	// 为每个服务初始化一个rpc通道
 	// 使用unique_ptr来管理通道的生命周期,确保在对象销毁时自动释放资源
