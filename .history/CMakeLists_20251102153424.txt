@@ -67,12 +67,12 @@ if(MPIM_BUILD_TOOLS AND EXISTS "${CMAKE_SOURCE_DIR}/example")
 endif()
 
 # ---------- Tests / Benchmarks ----------
-if(MPIM_BUILD_TESTS AND EXISTS "${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt")
+if(MPIM_BUILD_TESTS AND EXISTS "${CMAKE_SOURCE_DIR}/tests")
   enable_testing()
   add_subdirectory(tests)        # 测试 target 内部使用 GTest::gtest_main
 endif()
 
-if(MPIM_BUILD_BENCHMARKS AND EXISTS "${CMAKE_SOURCE_DIR}/benchmarks/CMakeLists.txt")
+if(MPIM_BUILD_BENCHMARKS AND EXISTS "${CMAKE_SOURCE_DIR}/benchmarks")
   add_subdirectory(benchmarks)   # 基准 target 内部使用 benchmark::benchmark
 endif()
 

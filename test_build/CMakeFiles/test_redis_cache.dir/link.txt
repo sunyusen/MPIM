@@ -1,1 +1,0 @@
-/usr/bin/c++  -std=c++11  -rdynamic CMakeFiles/test_redis_cache.dir/test_redis_cache.o  -o test_redis_cache  -lim-common -lredisclient -lpthread 
