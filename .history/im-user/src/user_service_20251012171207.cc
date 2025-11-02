@@ -1,0 +1,504 @@
+#include "user_service.h"
+#include <mysql/mysql.h>
+#include "logger/logger.h"
+#include "logger/log_init.h"
+#include "user_cache.h"
+#include <sstream>
+#include "db_pool.h"
+
+UserServiceImpl::UserServiceImpl()
+{
+	LOG_INFO << "UserServiceImpl: Initializing user service";
+	db_.reset(new MySQL());
+	if (db_->connect()) {
+		LOG_INFO << "UserServiceImpl: Database connected successfully";
+	} else {
+		LOG_ERROR << "UserServiceImpl: Database connection failed! User operations will be disabled";
+	}
+	
+	// 初始化Redis缓存
+	user_cache_.reset(new mpim::user::UserCache());
+	if (user_cache_->Connect()) {
+		LOG_INFO << "UserServiceImpl: Redis cache connected successfully";
+	} else {
+		LOG_WARN << "UserServiceImpl: Redis cache connection failed, will use degraded mode";
+	}
+}
+
+void UserServiceImpl::Login(google::protobuf::RpcController *,
+							const mpim::LoginReq *req,
+							mpim::LoginResp *resp,
+							google::protobuf::Closure *done)
+{
+	LOG_INFO << "UserServiceImpl::Login: User '" << req->username() << "' attempting to login";
+	
+	mpim::Result *r = resp->mutable_result();
+	std::string u(req->username().begin(), req->username().end());
+	std::string p(req->password().begin(), req->password().end());
+	
+	// 1. 先查Redis缓存
+	std::string cached_data = user_cache_->GetUserInfo(u);
+	
+    if (!cached_data.empty()) {
+        // 缓存命中，验证密码
+        int64_t cached_user_id = deserializeUser(cached_data);
+        if (cached_user_id > 0) {
+            // 验证密码（这里简化处理，实际应该缓存密码hash）
+            char sql[512];
+            snprintf(sql, sizeof(sql), "SELECT id FROM user WHERE name='%s' AND password='%s' LIMIT 1", u.c_str(), p.c_str());
+            auto dbc = MySQLPool::instance().acquire_for(std::chrono::milliseconds(500));
+            MYSQL_RES *res = dbc ? dbc->query(sql) : nullptr;
+            if (res && mysql_fetch_row(res)) {
+                mysql_free_result(res);
+
+                // 在线状态检查：已在线则拒绝登录
+                char check_online_sql[512];
+                snprintf(check_online_sql, sizeof(check_online_sql),
+                         "SELECT state FROM user WHERE id=%lld", (long long)cached_user_id);
+                auto dbc_chk = MySQLPool::instance().acquire_for(std::chrono::milliseconds(200));
+                MYSQL_RES *check_res = dbc_chk ? dbc_chk->query(check_online_sql) : nullptr;
+                if (check_res) {
+                    MYSQL_ROW check_row = mysql_fetch_row(check_res);
+                    if (check_row && strcmp(check_row[0], "online") == 0) {
+                        mysql_free_result(check_res);
+                        r->set_code(mpim::Code::INVALID);
+                        r->set_msg("user already online");
+                        if (done) done->Run();
+                        return;
+                    }
+                    mysql_free_result(check_res);
+                }
+
+                // 更新用户状态为在线
+                char update_sql[512];
+                snprintf(update_sql, sizeof(update_sql),
+                         "UPDATE user SET state='online' WHERE id=%lld", (long long)cached_user_id);
+                auto dbc_up = MySQLPool::instance().acquire_for(std::chrono::milliseconds(200));
+                if (!dbc_up || !dbc_up->update(update_sql)) {
+                    LOG_ERROR << "Failed to update user state to online for uid=" << cached_user_id;
+                }
+
+                // 返回成功
+                LOG_INFO << "UserServiceImpl::Login: User '" << req->username() << "' logged in successfully from cache with ID: " << cached_user_id;
+                resp->set_user_id(cached_user_id);
+                resp->set_token("tok_" + std::to_string(cached_user_id));
+                r->set_code(mpim::Code::Ok);
+                r->set_msg("ok");
+                if (done) done->Run();
+                return;
+            }
+            if (res) mysql_free_result(res);
+        }
+    }
+	
+	// 2. 缓存未命中，查MySQL
+	char sql[512];
+	snprintf(sql, sizeof(sql),
+			 "SELECT id FROM user WHERE name='%s' AND password='%s' LIMIT 1",
+			 u.c_str(), p.c_str()); // demo：先不做防注入
+
+	LOG_DEBUG << "UserServiceImpl::Login: Executing SQL: " << sql;
+	
+	auto dbc_main = MySQLPool::instance().acquire_for(std::chrono::milliseconds(500));
+	MYSQL_RES *res = dbc_main ? dbc_main->query(sql) : nullptr;
+	if (!res)
+	{
+		LOG_ERROR << "UserServiceImpl::Login: Database query failed for user '" << req->username() << "'";
+		r->set_code(mpim::Code::INTERNAL);
+		r->set_msg("db fail");
+		if (done)
+			done->Run();
+		return;
+	}
+	MYSQL_ROW row = mysql_fetch_row(res);
+	if (!row)
+	{
+
+		r->set_code(mpim::Code::INVALID);
+		r->set_msg("bad cred");
+		mysql_free_result(res);
+		if (done)
+			done->Run();
+		return;
+	}
+
+	int64_t uid = atoll(row[0]);
+	mysql_free_result(res);
+	
+	// 3. 查询成功，写入缓存
+	std::string user_data = serializeUser(uid, u);
+	user_cache_->SetUserInfo(u, user_data, 3600); // 缓存1小时
+	
+	// 检查用户是否已经在线
+	char check_online_sql[512];
+	snprintf(check_online_sql, sizeof(check_online_sql),
+			 "SELECT state FROM user WHERE id=%lld", uid);
+    auto dbc_chk = MySQLPool::instance().acquire_for(std::chrono::milliseconds(200));
+    MYSQL_RES *check_res = dbc_chk ? dbc_chk->query(check_online_sql) : nullptr;
+    if (check_res) {
+        MYSQL_ROW check_row = mysql_fetch_row(check_res);
+        if (check_row && strcmp(check_row[0], "online") == 0) {
+            // 已在线必须拒绝
+            mysql_free_result(check_res);
+            r->set_code(mpim::Code::INVALID);
+            r->set_msg("user already online");
+            if (done) done->Run();
+            return;
+        }
+        mysql_free_result(check_res);
+    }
+	
+	// 更新用户状态为在线
+	char update_sql[512];
+	snprintf(update_sql, sizeof(update_sql),
+			 "UPDATE user SET state='online' WHERE id=%lld", uid);
+	auto dbc_up = MySQLPool::instance().acquire_for(std::chrono::milliseconds(200));
+	if (!dbc_up || !dbc_up->update(update_sql)) {
+			LOG_ERROR << "Failed to update user state to online for uid=" << uid;
+	}
+	
+	resp->set_user_id(uid);
+	resp->set_token("tok_" + std::to_string(uid)); // 简历版：占位 token
+	r->set_code(mpim::Code::Ok);
+	r->set_msg("ok");
+	if (done)
+		done->Run();
+}
+
+bool UserServiceImpl::userExists(const std::string& username, long long* id_out)
+{
+	char sql[512];
+	snprintf(sql, sizeof(sql), "SELECT id FROM user WHERE name='%s' LIMIT 1", username.c_str());
+	MYSQL_RES *res = db_->query(sql);
+	if (!res) return false; // 失败时上层根据 result 处理
+	MYSQL_ROW row = mysql_fetch_row(res);
+	bool exists = (row != nullptr);
+	if (exists && id_out) *id_out = atoll(row[0]);
+	mysql_free_result(res);
+	return exists;
+}
+
+void UserServiceImpl::Register(google::protobuf::RpcController *,
+								const mpim::RegisterReq *req,
+								mpim::RegisterResp *resp,
+								google::protobuf::Closure *done)
+{
+	mpim::Result *r = resp->mutable_result();
+	std::string u(req->username().begin(), req->username().end());
+	std::string p(req->password().begin(), req->password().end());
+
+	// 1. 先查Redis缓存用户名是否存在
+	bool username_exists = false;
+	if (user_cache_->IsConnected()) {
+		username_exists = user_cache_->IsUsernameExists(u);
+		if (username_exists) {
+			LOG_INFO << "UserServiceImpl::Register: Username '" << req->username() << "' already exists (from cache)";
+			r->set_code(mpim::Code::INVALID);
+			r->set_msg("exists");
+			if (done) done->Run();
+			return;
+		}
+	}
+
+	// 2. 如果缓存未命中，查数据库
+	if (!username_exists) {
+		long long exist_id = 0;
+		if (userExists(u, &exist_id)) {
+			// 用户名已存在，更新缓存
+			user_cache_->SetUsernameExists(u, true, 300); // 缓存5分钟
+			LOG_INFO << "UserServiceImpl::Register: Username '" << req->username() << "' already exists (from DB)";
+			r->set_code(mpim::Code::INVALID);
+			r->set_msg("exists");
+			if (done) done->Run();
+			return;
+		}
+	}
+
+	// 3. 插入新用户
+	char sql[512];
+	snprintf(sql, sizeof(sql), "INSERT INTO user(name,password) VALUES('%s','%s')", u.c_str(), p.c_str());
+	if (!db_->update(sql)) {
+		LOG_ERROR << "UserServiceImpl::Register: Failed to insert user '" << req->username() << "'";
+		r->set_code(mpim::Code::INTERNAL);
+		r->set_msg("insert fail");
+		if (done) done->Run();
+		return;
+	}
+
+	// 4. 获取新用户ID并更新缓存
+	MYSQL *c = db_->getConnection();
+	long long uid = (long long)mysql_insert_id(c);
+	
+	// 缓存用户名存在性
+	user_cache_->SetUsernameExists(u, true, 300);
+	// 缓存用户信息
+	std::string user_data = serializeUser(uid, u);
+	user_cache_->SetUserInfo(u, user_data, 3600);
+	// 缓存用户状态
+	user_cache_->SetUserStatus(uid, "offline", 3600);
+	
+	LOG_INFO << "UserServiceImpl::Register: User '" << req->username() << "' registered successfully with ID: " << uid;
+	resp->set_user_id(uid);
+	r->set_code(mpim::Code::Ok);
+	r->set_msg("ok");
+	if (done) done->Run();
+}
+
+void UserServiceImpl::Logout(google::protobuf::RpcController *,
+							const mpim::LogoutReq *req,
+							mpim::LogoutResp *resp,
+							google::protobuf::Closure *done)
+{
+	LOG_INFO << "UserServiceImpl::Logout: User " << req->user_id() << " logging out";
+	
+	mpim::Result *r = resp->mutable_result();
+	
+	// 1. 更新数据库用户状态为离线
+	char update_sql[512];
+	snprintf(update_sql, sizeof(update_sql),
+			 "UPDATE user SET state='offline' WHERE id=%lld", req->user_id());
+	if (!db_->update(update_sql)) {
+		LOG_ERROR << "UserServiceImpl::Logout: Failed to update user state to offline for uid=" << req->user_id();
+	}
+	
+	// 2. 更新Redis缓存中的用户状态
+	if (user_cache_->IsConnected()) {
+		user_cache_->SetUserStatus(req->user_id(), "offline", 3600);
+		LOG_INFO << "UserServiceImpl::Logout: Updated user status in cache for uid=" << req->user_id();
+	}
+	
+	LOG_INFO << "UserServiceImpl::Logout: User " << req->user_id() << " logged out successfully";
+	r->set_code(mpim::Code::Ok);
+	r->set_msg("logout success");
+	if (done) done->Run();
+}
+
+void UserServiceImpl::AddFriend(google::protobuf::RpcController *,
+							   const mpim::AddFriendReq *req,
+							   mpim::AddFriendResp *resp,
+							   google::protobuf::Closure *done)
+{
+	mpim::Result *r = resp->mutable_result();
+	
+	// 检查是否已经是好友
+	if (isFriend(req->user_id(), req->friend_id()))
+	{
+		r->set_code(mpim::Code::INVALID);
+		r->set_msg("already friends");
+		if (done) done->Run();
+		return;
+	}
+	
+	// 检查目标用户是否存在
+	long long friend_id_check = 0;
+	char sql[512];
+	snprintf(sql, sizeof(sql), "SELECT id FROM user WHERE id=%lld LIMIT 1", req->friend_id());
+	MYSQL_RES *res = db_->query(sql);
+	if (!res)
+	{
+		r->set_code(mpim::Code::INTERNAL);
+		r->set_msg("db query failed");
+		if (done) done->Run();
+		return;
+	}
+	MYSQL_ROW row = mysql_fetch_row(res);
+	if (!row)
+	{
+		mysql_free_result(res);
+		r->set_code(mpim::Code::NOT_FOUND);
+		r->set_msg("friend not found");
+		if (done) done->Run();
+		return;
+	}
+	mysql_free_result(res);
+	
+	// 添加好友关系（双向）
+	char sql1[512], sql2[512];
+	snprintf(sql1, sizeof(sql1), 
+		"INSERT INTO friend(userid, friendid) VALUES(%d, %d)", 
+		(int)req->user_id(), (int)req->friend_id());
+	snprintf(sql2, sizeof(sql2), 
+		"INSERT INTO friend(userid, friendid) VALUES(%d, %d)", 
+		(int)req->friend_id(), (int)req->user_id());
+	
+	if (!db_->update(sql1) || !db_->update(sql2))
+	{
+		LOG_ERROR << "UserServiceImpl::AddFriend: Failed to add friend relationship between " << req->user_id() << " and " << req->friend_id();
+		r->set_code(mpim::Code::INTERNAL);
+		r->set_msg("add friend failed");
+		if (done) done->Run();
+		return;
+	}
+	
+	// 更新Redis缓存中的好友关系
+	if (user_cache_->IsConnected()) {
+		user_cache_->AddFriend(req->user_id(), req->friend_id());
+		user_cache_->AddFriend(req->friend_id(), req->user_id());
+		// 清除好友列表缓存，强制下次查询时重新加载
+		user_cache_->DelFriends(req->user_id());
+		user_cache_->DelFriends(req->friend_id());
+		LOG_INFO << "UserServiceImpl::AddFriend: Updated friend relationship in cache";
+	}
+	
+	LOG_INFO << "UserServiceImpl::AddFriend: Successfully added friend relationship between " << req->user_id() << " and " << req->friend_id();
+	r->set_code(mpim::Code::Ok);
+	r->set_msg("friend added");
+	if (done) done->Run();
+}
+
+void UserServiceImpl::GetFriends(google::protobuf::RpcController *,
+								const mpim::GetFriendsReq *req,
+								mpim::GetFriendsResp *resp,
+								google::protobuf::Closure *done)
+{
+	LOG_INFO << "UserServiceImpl::GetFriends: Getting friends for user " << req->user_id();
+	
+	mpim::Result *r = resp->mutable_result();
+	
+	// 1. 先尝试从Redis缓存获取好友列表
+	if (user_cache_->IsConnected()) {
+		std::string cached_friends = user_cache_->GetFriends(req->user_id());
+		if (!cached_friends.empty()) {
+			// 解析缓存的好友列表
+			std::istringstream iss(cached_friends);
+			std::string friend_id_str;
+			while (std::getline(iss, friend_id_str, ',')) {
+				if (!friend_id_str.empty()) {
+					resp->add_friend_ids(std::stoll(friend_id_str));
+				}
+			}
+			LOG_INFO << "UserServiceImpl::GetFriends: Retrieved friends from cache for user " << req->user_id();
+			r->set_code(mpim::Code::Ok);
+			r->set_msg("ok");
+			if (done) done->Run();
+			return;
+		}
+	}
+	
+	// 2. 缓存未命中，从数据库查询
+	char sql[512];
+	snprintf(sql, sizeof(sql), 
+		"SELECT friendid FROM friend WHERE userid=%d", (int)req->user_id());
+	
+	MYSQL_RES *res = db_->query(sql);
+	if (!res)
+	{
+		LOG_ERROR << "UserServiceImpl::GetFriends: Database query failed for user " << req->user_id();
+		r->set_code(mpim::Code::INTERNAL);
+		r->set_msg("db query failed");
+		if (done) done->Run();
+		return;
+	}
+	
+	// 3. 处理查询结果并缓存
+	std::string friends_data;
+	MYSQL_ROW row;
+	while ((row = mysql_fetch_row(res)) != nullptr)
+	{
+		int64_t friend_id = atoll(row[0]);
+		resp->add_friend_ids(friend_id);
+		if (!friends_data.empty()) friends_data += ",";
+		friends_data += std::to_string(friend_id);
+	}
+	mysql_free_result(res);
+	
+	// 4. 将查询结果写入缓存
+	if (user_cache_->IsConnected() && !friends_data.empty()) {
+		user_cache_->SetFriends(req->user_id(), friends_data, 1800); // 缓存30分钟
+		LOG_INFO << "UserServiceImpl::GetFriends: Cached friends list for user " << req->user_id();
+	}
+	
+	LOG_INFO << "UserServiceImpl::GetFriends: Retrieved " << resp->friend_ids_size() << " friends for user " << req->user_id();
+	r->set_code(mpim::Code::Ok);
+	r->set_msg("ok");
+	if (done) done->Run();
+}
+
+void UserServiceImpl::RemoveFriend(google::protobuf::RpcController *,
+								  const mpim::RemoveFriendReq *req,
+								  mpim::RemoveFriendResp *resp,
+								  google::protobuf::Closure *done)
+{
+	mpim::Result *r = resp->mutable_result();
+	
+	// 删除双向好友关系
+	char sql1[512], sql2[512];
+	snprintf(sql1, sizeof(sql1), 
+		"DELETE FROM friend WHERE userid=%d AND friendid=%d", 
+		(int)req->user_id(), (int)req->friend_id());
+	snprintf(sql2, sizeof(sql2), 
+		"DELETE FROM friend WHERE userid=%d AND friendid=%d", 
+		(int)req->friend_id(), (int)req->user_id());
+	
+	if (!db_->update(sql1) || !db_->update(sql2))
+	{
+		LOG_ERROR << "UserServiceImpl::RemoveFriend: Failed to remove friend relationship between " << req->user_id() << " and " << req->friend_id();
+		r->set_code(mpim::Code::INTERNAL);
+		r->set_msg("remove friend failed");
+		if (done) done->Run();
+		return;
+	}
+	
+	// 更新Redis缓存中的好友关系
+	if (user_cache_->IsConnected()) {
+		user_cache_->RemoveFriend(req->user_id(), req->friend_id());
+		user_cache_->RemoveFriend(req->friend_id(), req->user_id());
+		// 清除好友列表缓存，强制下次查询时重新加载
+		user_cache_->DelFriends(req->user_id());
+		user_cache_->DelFriends(req->friend_id());
+		LOG_INFO << "UserServiceImpl::RemoveFriend: Updated friend relationship in cache";
+	}
+	
+	LOG_INFO << "UserServiceImpl::RemoveFriend: Successfully removed friend relationship between " << req->user_id() << " and " << req->friend_id();
+	r->set_code(mpim::Code::Ok);
+	r->set_msg("friend removed");
+	if (done) done->Run();
+}
+
+bool UserServiceImpl::isFriend(int64_t user_id, int64_t friend_id)
+{
+	char sql[512];
+	snprintf(sql, sizeof(sql), 
+		"SELECT 1 FROM friend WHERE userid=%d AND friendid=%d LIMIT 1", 
+		(int)user_id, (int)friend_id);
+	
+	MYSQL_RES *res = db_->query(sql);
+	if (!res) return false;
+	
+	MYSQL_ROW row = mysql_fetch_row(res);
+	bool exists = (row != nullptr);
+	mysql_free_result(res);
+	return exists;
+}
+
+void UserServiceImpl::resetAllUsersToOffline()
+{
+	char sql[512];
+	snprintf(sql, sizeof(sql), "UPDATE user SET state='offline' WHERE state='online'");
+	if (db_->update(sql)) {
+			LOG_INFO << "All users reset to offline state on service startup";
+	} else {
+			LOG_ERROR << "Failed to reset users to offline state";
+	}
+}
+
+// 缓存相关方法实现
+std::string UserServiceImpl::getUserCacheKey(const std::string& username) {
+	return "user:" + username;
+}
+
+std::string UserServiceImpl::serializeUser(int64_t user_id, const std::string& username) {
+	return std::to_string(user_id) + ":" + username;
+}
+
+int64_t UserServiceImpl::deserializeUser(const std::string& data) {
+	size_t pos = data.find(':');
+	if (pos == std::string::npos) {
+		return 0;
+	}
+	try {
+		return std::stoll(data.substr(0, pos));
+	} catch (...) {
+		return 0;
+	}
+}
